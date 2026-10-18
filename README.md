@@ -1,6 +1,6 @@
 <div align="center">
 
-# huashu-gpt-image
+# owen-gpt-image
 
 > *「你缺的不是 prompt 技巧，是那个名字。」*
 > *GPT-image-2 的 prompt 工程方法论。*
@@ -30,7 +30,7 @@ Dieter Rams 风格的大疆 pocket3 说明书
 为什么他配这个产品。**模型的视觉记忆里有他，前提是你去调他。**
 
 ```
-npx skills add alchaincyf/huashu-gpt-image
+npx skills add OwenMasculinity/owen-gpt-image
 ```
 
 跨 agent 通用——Claude Code、Cursor、Codex、OpenClaw、Hermes 都能装。
@@ -86,7 +86,7 @@ Dieter Rams / Penguin Books / MUJI / Anthropic / 瑞士国际主义 ——
 ## 装上就能用
 
 ```bash
-npx skills add alchaincyf/huashu-gpt-image
+npx skills add OwenMasculinity/owen-gpt-image
 ```
 
 装完直接说人话：

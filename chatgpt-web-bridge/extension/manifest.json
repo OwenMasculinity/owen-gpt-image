@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "ChatGPT Web 生图桥 (huashu-gpt-image)",
+  "name": "ChatGPT Web 生图桥 (owen-gpt-image)",
   "version": "0.1.0",
-  "description": "把 chatgpt.com 网页版生图能力桥接成本地 API，吃网页版额度。配合 huashu-gpt-image skill 使用。",
+  "description": "把 chatgpt.com 网页版生图能力桥接成本地 API，吃网页版额度。配合 owen-gpt-image skill 使用。",
   "permissions": ["tabs", "scripting", "storage", "alarms", "debugger"],
   "host_permissions": [
     "https://chatgpt.com/*",

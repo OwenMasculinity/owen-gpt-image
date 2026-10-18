@@ -73,7 +73,7 @@
    a curated set, not random objects. Equal visual weight, 
    no item dominates.
    ```
-   这个短语来自 huashu-gpt-image 的「IP 记忆唤起胜过细节堆砌」原则——AI 见过太多 Hearthstone 卡牌，知道「同一套卡牌的统一视觉处理」是什么意思。
+   这个短语来自 owen-gpt-image 的「IP 记忆唤起胜过细节堆砌」原则——AI 见过太多 Hearthstone 卡牌，知道「同一套卡牌的统一视觉处理」是什么意思。
 
 ---
 

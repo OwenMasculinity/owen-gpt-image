@@ -1,6 +1,6 @@
 # ChatGPT Web 生图桥
 
-把 **chatgpt.com 网页版**的生图能力桥接成一个本地 API，给 `huashu-gpt-image` skill 当**第三条生成路**。
+把 **chatgpt.com 网页版**的生图能力桥接成一个本地 API，给 `owen-gpt-image` skill 当**第三条生成路**。
 
 ## 为什么要它
 
@@ -37,7 +37,7 @@ gen_via_chatgpt_web.py  <----图片字节----  server.py  <--POST /result-------
 ### 2. 跑本地中继
 
 ```bash
-python3 ~/.claude/skills/huashu-gpt-image/chatgpt-web-bridge/server.py
+python3 ~/.claude/skills/owen-gpt-image/chatgpt-web-bridge/server.py
 ```
 
 保持这个终端开着（或用 `&` / launchd 常驻）。换端口：`PORT=9000 python3 server.py`，扩展 popup 里也要改成同一个。
@@ -45,7 +45,7 @@ python3 ~/.claude/skills/huashu-gpt-image/chatgpt-web-bridge/server.py
 ### 3. 验证
 
 ```bash
-python3 ~/.claude/skills/huashu-gpt-image/scripts/gen_via_chatgpt_web.py --health
+python3 ~/.claude/skills/owen-gpt-image/scripts/gen_via_chatgpt_web.py --health
 # ✅ 桥 + 扩展均在线
 ```
 

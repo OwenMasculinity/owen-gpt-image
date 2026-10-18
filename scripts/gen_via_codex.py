@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """gen_via_codex.py — 走 codex 订阅额度的 GPT-image-2 生成链路（不需 OPENAI_API_KEY）。
 
-huashu-gpt-image 负责把 prompt 写到 9.5 分，这个脚本负责把图真的生出来。
+owen-gpt-image 负责把 prompt 写到 9.5 分，这个脚本负责把图真的生出来。
 底层调用 `codex exec -s workspace-write` 里的内置 $imagegen skill（gpt-image-2），
 吃的是 codex login 的 ChatGPT 订阅额度，不按 API 计费。
 
