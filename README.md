@@ -75,26 +75,7 @@ python scripts/vibe.py 高级感
 文字候选也有选不出来的时候 —— 用户看着「无印良品」三个字，依然想象不出它长什么样。
 那就把卡片换成图：一次给出九张编号风格卡，用户只要说「我要 3 号」。
 
-```text
-用户：「要高级感」—— 说不出任何设计名词
-                │
-                │  检索 references/vibe-to-name.md + 本地参考图库
-                ▼
-   ┌─────────┬─────────┬─────────┐
-   │    1    │    2    │    3    │
-   │ 无印良品 │ D.Rams  │ Sander  │
-   ├─────────┼─────────┼─────────┤
-   │    4    │    5    │    6    │
-   │  Apple  │ 吉卜力  │ Penguin │
-   ├─────────┼─────────┼─────────┤
-   │    7    │    8    │    9    │
-   │ 故宫文创 │ 赛博朋克 │ 月份牌  │
-   └─────────┴─────────┴─────────┘
-                │
-                │  你说：「我要 3 号」
-                ▼
-        只生成选中的那 1 张
-```
+![九宫格盲测流程](docs/blind-test-flow.png)
 
 两条原则，都是为了省额度：
 
@@ -109,7 +90,7 @@ python scripts/blind_test.py 高级感 --images-dir DIR    # 从本地参考图�
 python scripts/blind_test.py 高级感 --pick 3 --generate --subject "大疆 pocket3 说明书"
 ```
 
-看板由 PIL 本地渲染，零 API 成本。（流程图另见 `docs/blind-test-flow.svg`）
+看板由 PIL 本地渲染，零 API 成本。（流程图 SVG 源：`docs/blind-test-flow.svg`）
 
 ---
 
