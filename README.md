@@ -13,13 +13,13 @@
 所以这里给你的不是 prompt 模板，是**一套叫得出名字的方法论**，  
 外加一条**不花 API 钱也能跑通**的出图链路。
 
+</div>
+
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 ![Agent-Agnostic](https://img.shields.io/badge/Agent-Agnostic-blueviolet)
 
 ![GitHub](https://img.shields.io/badge/GitHub-OwenMasculinity%2Fowen--gpt--image-181717?logo=github)
-
-</div>
 
 ---
 
@@ -41,6 +41,8 @@
 | ✅ **不靠重抽卡**    | 出图前 5 项自检卡住质量，出图后有失败模式树对症修。抽卡十次，不如改对一处                             |
 | ⚡ **批量一次到位**   | 网格法一次出 12 张，同一张图里的元素风格天然一致，再自动切成独立透明 PNG                           |
 
+### 1.1 和别的方案有什么不一样
+
 同一件事，四种做法的差别：
 
 |           | 提示词合集 / 教程 | 通用 agent 直接生图 | 直接调 OpenAI API | **本仓库**                   |
@@ -52,6 +54,25 @@
 | 出错了       | 自己猜        | 「再试一次」        | 「再试一次」         | **失败模式树对症改**              |
 | 批量        | 无          | 慢             | 要自己写并发         | **网格法一次 12 张 + 自动切图**     |
 | 图上中文      | 容易冒出英文     | 不稳            | 看 prompt 怎么写   | **默认中文，验收逐字查**            |
+
+### 1.2 说不出名字怎么办
+
+「高级感」「温暖」「科技感」——说得出感觉，叫不出 Dieter Rams、吉卜力。
+这很正常：**这套方法的入口本来就偏高，问题不在你。**
+
+仓库里的做法是把「填真名」藏成内部实现，你只管说人话：
+
+| 你说 | 它做 |
+|---|---|
+| 「高级感」 | 查 `references/vibe-to-name.md` → 给出 3 个候选真名（无印良品 / Dieter Rams / Jil Sander）让你选 |
+| 「不知道要什么，你看着办」 | 用元 prompt 让模型先自报 3 个参照，再按它生成 |
+| 「随便」 | 按默认真名直接生成，不再追问（**最多问一轮，且自带默认值**） |
+
+查表是离线的，不花 token：
+
+```bash
+python scripts/vibe.py 高级感
+```
 
 ---
 
@@ -215,6 +236,18 @@ icon 集 / 角色集 / 卡牌集 / sprite sheet / 中文长文本，走网格：
 - **渲染层**：中文错字 / 缺笔画、出版品牌名被画成左上角英文 nameplate、风格 transfer 不像
 - **执行层**：订阅路径 429 → 切网页版路径；透明底不稳 → 纯色幕布 + `chroma_key.py`；大批量 → 切 API 路径
 
+### 4.7 两个新工具：查表与门禁
+
+| 脚本 | 作用 |
+|---|---|
+| `scripts/vibe.py` | 感觉词 → 3 个候选真名，离线查 `references/vibe-to-name.md`，零 token、秒回 |
+| `scripts/lint_prompt.py` | 把 5 项自检做成可执行门禁：中英文、长度、真名数、伪 section、形容词堆砌、尺寸。有 FAIL 项退出码 1 |
+
+```bash
+python scripts/vibe.py 温暖                      # 感觉 → 真名
+python scripts/lint_prompt.py "你的 prompt"       # 过门禁，不通过就别交付
+```
+
 ---
 
 ## 附录 · 这个仓库里有什么
@@ -233,11 +266,14 @@ owen-gpt-image/
 │   ├── prompt-patterns.md          # 批量网格模板：icon / 角色 / 卡牌 / 中文卡 / 书法 / sprite
 │   ├── extraction-strategies.md    # 网格抠图策略与故障排查（bbox / density 两种模式）
 │   ├── capabilities.md             # GPT-image-2 能力边界实测数据
+│   ├── vibe-to-name.md             # 感觉词 → 候选真名映射表（小白 / 甲方模式用，见 1.2）
 │   ├── real-world-cases.md         # 真实案例复盘
 │   ├── video-reference-board.md    # AI 视频参考板：角色三视图 + 分镜 + 机位合成一张图
 │   └── *.png                       # 上面那份参考板的样图
 ├── scripts/
 │   ├── gen_via_codex.py            # 生成：单图 / JSONL 并发批量，走 codex 订阅额度（见 4.3）
+│   ├── vibe.py                     # 感觉词 → 候选真名（离线查表，见 4.7）
+│   ├── lint_prompt.py              # prompt 5 项自检门禁，有 FAIL 就退出码 1（见 4.7）
 │   ├── gen_via_chatgpt_web.py      # 生成：走 ChatGPT 网页版额度（见 4.4）
 │   ├── extract_grid.py             # 网格大图 → 多个独立透明 PNG（见 4.5）
 │   ├── contact_sheet.py            # 拼预览图，批量出图后肉眼验收
@@ -255,6 +291,7 @@ owen-gpt-image/
 
 
 ```
+
 
 ---
 
