@@ -15,11 +15,7 @@
 
 </div>
 
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-
-![Agent-Agnostic](https://img.shields.io/badge/Agent-Agnostic-blueviolet)
-
-![GitHub](https://img.shields.io/badge/GitHub-OwenMasculinity%2Fowen--gpt--image-181717?logo=github)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Agent-Agnostic](https://img.shields.io/badge/Agent-Agnostic-blueviolet)](https://skills.sh) [![GitHub](https://img.shields.io/badge/GitHub-OwenMasculinity%2Fowen--gpt--image-181717?logo=github)](https://github.com/OwenMasculinity/owen-gpt-image)
 
 ---
 
@@ -73,6 +69,47 @@
 ```bash
 python scripts/vibe.py 高级感
 ```
+
+### 1.3 九宫格盲测：看图指认
+
+文字候选也有选不出来的时候 —— 用户看着「无印良品」三个字，依然想象不出它长什么样。
+那就把卡片换成图：一次给出九张编号风格卡，用户只要说「我要 3 号」。
+
+```text
+用户：「要高级感」—— 说不出任何设计名词
+                │
+                │  检索 references/vibe-to-name.md + 本地参考图库
+                ▼
+   ┌─────────┬─────────┬─────────┐
+   │    1    │    2    │    3    │
+   │ 无印良品 │ D.Rams  │ Sander  │
+   ├─────────┼─────────┼─────────┤
+   │    4    │    5    │    6    │
+   │  Apple  │ 吉卜力  │ Penguin │
+   ├─────────┼─────────┼─────────┤
+   │    7    │    8    │    9    │
+   │ 故宫文创 │ 赛博朋克 │ 月份牌  │
+   └─────────┴─────────┴─────────┘
+                │
+                │  你说：「我要 3 号」
+                ▼
+        只生成选中的那 1 张
+```
+
+两条原则，都是为了省额度：
+
+1. **检索优先** —— 九宫格里放的是**检索回来的参考图**（或本地渲染的文字卡），
+   不是新生成的九张图。在「还不知道要什么」的时候烧 9 次额度是最蠢的花法。
+2. **生成克制** —— 指认之后默认只生成选中的那 1 张。
+   只有你明确说要多种风格（`--variants N`）时，才生成 N 张。
+
+```bash
+python scripts/blind_test.py 高级感                    # 检索 + 出编号看板（不生图）
+python scripts/blind_test.py 高级感 --images-dir DIR    # 从本地参考图库贴真实示意
+python scripts/blind_test.py 高级感 --pick 3 --generate --subject "大疆 pocket3 说明书"
+```
+
+看板由 PIL 本地渲染，零 API 成本。（流程图另见 `docs/blind-test-flow.svg`）
 
 ---
 
@@ -236,16 +273,18 @@ icon 集 / 角色集 / 卡牌集 / sprite sheet / 中文长文本，走网格：
 - **渲染层**：中文错字 / 缺笔画、出版品牌名被画成左上角英文 nameplate、风格 transfer 不像
 - **执行层**：订阅路径 429 → 切网页版路径；透明底不稳 → 纯色幕布 + `chroma_key.py`；大批量 → 切 API 路径
 
-### 4.7 两个新工具：查表与门禁
+### 4.7 三个新工具：查表、门禁、盲测
 
 | 脚本 | 作用 |
 |---|---|
 | `scripts/vibe.py` | 感觉词 → 3 个候选真名，离线查 `references/vibe-to-name.md`，零 token、秒回 |
 | `scripts/lint_prompt.py` | 把 5 项自检做成可执行门禁：中英文、长度、真名数、伪 section、形容词堆砌、尺寸。有 FAIL 项退出码 1 |
+| `scripts/blind_test.py` | 感觉词 → 九宫格编号看板 → 用户指认 → **只生成选中的那 1 张**（见 1.3）。默认只检索，不加 `--variants` 就不多生 |
 
 ```bash
-python scripts/vibe.py 温暖                      # 感觉 → 真名
-python scripts/lint_prompt.py "你的 prompt"       # 过门禁，不通过就别交付
+python scripts/vibe.py 温暖                       # 感觉 → 真名
+python scripts/lint_prompt.py "你的 prompt"        # 过门禁，不通过就别交付
+python scripts/blind_test.py 高级感                # 出九宫格看板，不烧额度
 ```
 
 ---
@@ -272,12 +311,17 @@ owen-gpt-image/
 │   └── *.png                       # 上面那份参考板的样图
 ├── scripts/
 │   ├── gen_via_codex.py            # 生成：单图 / JSONL 并发批量，走 codex 订阅额度（见 4.3）
-│   ├── vibe.py                     # 感觉词 → 候选真名（离线查表，见 4.7）
-│   ├── lint_prompt.py              # prompt 5 项自检门禁，有 FAIL 就退出码 1（见 4.7）
 │   ├── gen_via_chatgpt_web.py      # 生成：走 ChatGPT 网页版额度（见 4.4）
+│   ├── vibe.py                     # 感觉词 → 候选真名（离线查表，见 4.7）
+│   ├── blind_test.py               # 九宫格盲测：出编号看板 → 指认 → 只生成选中的 1 张（见 1.3）
+│   ├── lint_prompt.py              # prompt 5 项自检门禁，有 FAIL 就退出码 1（见 4.7）
 │   ├── extract_grid.py             # 网格大图 → 多个独立透明 PNG（见 4.5）
 │   ├── contact_sheet.py            # 拼预览图，批量出图后肉眼验收
 │   └── chroma_key.py               # 纯色幕布抠透明（没有 API key 时的透明 PNG 方案）
+├── tests/
+│   └── test_blind_test.py         # blind_test.py 的验收测试（含「不生图 / 只生 1 张」守门用例）
+├── docs/
+│   └── blind-test-flow.svg        # 九宫格盲测流程示意
 └── chatgpt-web-bridge/             # 本仓库独有：把 chatgpt.com 网页版桥接成本地 HTTP API
     ├── server.py                   # 本地桥 127.0.0.1:8765：/poll /submit /result /health /diag /reload
     ├── README.md                   # 桥的部署与排错说明
@@ -288,14 +332,8 @@ owen-gpt-image/
         └── popup.html / popup.js
 ```
 
-
-
-```
-
-
 ---
 
 ## License
 
 [MIT](LICENSE) © 2026 OwenMasculinity
-```
