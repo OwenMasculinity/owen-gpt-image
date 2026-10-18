@@ -223,8 +223,8 @@ $LOGO_LIB/
   python scripts/gen_via_codex.py --prompt "参考图1是花叔头像角色，参考图2是该产品官方 logo 放进画面合理位置作产品标识，参考图3是所选家族风格。严禁英文段落、严禁外文品牌名水印、严禁左上角 nameplate" \
     --out 配图/封面.png --size 1600x900 --quality high \
     --ref $IMAGE_LIB/品牌资产/花叔头像-superflat三视图.png \
-    --ref "$HOME/Documents/写作/04-写作参考/品牌Logo库/<公司>/<产品>.png" \
-    --ref "$HOME/Documents/写作/配图/风格参考/<家族风格垫图>.png"
+    --ref "$LOGO_LIB/<公司>/<产品>.png" \
+    --ref "$IMAGE_LIB/风格参考/<家族风格垫图>.png"
   ```
   JSONL batch 同理：`"ref": ["…/花叔头像-superflat三视图.png", "…/品牌Logo库/OpenAI/ChatGPT.png", "…/风格参考/<家族>.png"]`（ref 字段支持数组）。
 - 为什么：产品 logo 是该品牌**最强的视觉锚点**，喂真图比让模型凭记忆画 logo 准得多（同红线 3 的「ref > prompt 真名」逻辑）。否则模型常把 logo 画错形、画错色，或把品牌名当 nameplate 写英文。
@@ -383,7 +383,7 @@ python3 scripts/gen_via_codex.py \
   --prompt "参考图1是花叔头像角色，参考图2是所选家族风格：[场景描述]+超大字『标题』。严禁英文段落、严禁外文品牌名水印" \
   --out 配图/封面.png --size 1600x900 --quality high \
   --ref $IMAGE_LIB/品牌资产/花叔头像-superflat三视图.png \
-  --ref "$HOME/Documents/写作/配图/风格参考/<家族风格垫图>.png"
+  --ref "$IMAGE_LIB/风格参考/<家族风格垫图>.png"
 ```
 
 - `--prompt` 填你按上面方法论写好的中文短 prompt
