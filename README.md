@@ -8,6 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Agent-Agnostic](https://img.shields.io/badge/Agent-Agnostic-blueviolet)](https://skills.sh)
 [![Skills](https://img.shields.io/badge/skills.sh-Compatible-green)](https://skills.sh)
+[![GitHub](https://img.shields.io/badge/GitHub-OwenMasculinity%2Fowen--gpt--image-181717?logo=github)](https://github.com/OwenMasculinity/owen-gpt-image)
 
 <br>
 
@@ -85,8 +86,18 @@ Dieter Rams / Penguin Books / MUJI / Anthropic / 瑞士国际主义 ——
 
 ## 装上就能用
 
+**仓库**：https://github.com/OwenMasculinity/owen-gpt-image
+
+方式一 · skills 安装：
+
 ```bash
 npx skills add OwenMasculinity/owen-gpt-image
+```
+
+方式二 · 直接克隆到你的 skills 目录：
+
+```bash
+git clone https://github.com/OwenMasculinity/owen-gpt-image.git ~/.claude/skills/owen-gpt-image
 ```
 
 装完直接说人话：
