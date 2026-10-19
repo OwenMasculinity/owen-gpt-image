@@ -48,8 +48,22 @@ def _eprint(*a):
     print(*a, file=sys.stderr, flush=True)
 
 
-def _build_codex_prompt(prompt: str, out: str, size: str | None, quality: str | None) -> str:
-    """构造给 codex agent 的中文生成指令。保持简短——agent 自己会调 $imagegen。"""
+def _build_codex_prompt(prompt: str, out: str, size: str | None, quality: str | None,
+                        use_craft: bool = True) -> str:
+    """构造给 codex agent 的中文生成指令。保持简短——agent 自己会调 $imagegen。
+
+    默认先过 craft_prompt（SKILL.md 红线 1.2/3/4 的脚本化）：识别真名、
+    补「图里文字用中文」「无水印」、出版物 nameplate 防护。--no-craft 透传。
+    """
+    if use_craft:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from craft_prompt import craft as craft_prompt
+        r = craft_prompt(prompt, size=None)
+        for s in r["steps"]:
+            _eprint(f"  · craft: {s}")
+        prompt = r["crafted"]
+        if r["lint"]["fails"]:
+            raise SystemExit(f"craft 自检有 {r['lint']['fails']} 个 FAIL，禁止生图（先改 prompt）")
     lines = [f"用 $imagegen 生成图片，保存到 {out}。"]
     if size:
         lines.append(f"尺寸严格 {size} 像素（生成后如不符请裁剪/缩放到精确尺寸）。")
@@ -102,11 +116,12 @@ def _verify_size(out: Path) -> str:
 
 
 def generate_one(prompt: str, out: str, size: str | None = None,
-                 quality: str | None = None, ref=None) -> tuple[bool, str]:
+                 quality: str | None = None, ref=None,
+                 use_craft: bool = True) -> tuple[bool, str]:
     """生成一张图。返回 (成功, 信息)。
     ref 可为单个路径 str，或多个路径的 list（如 品牌资产 + 产品 logo 一起喂）。"""
     out_path = Path(out)
-    full_prompt = _build_codex_prompt(prompt, str(out_path), size, quality)
+    full_prompt = _build_codex_prompt(prompt, str(out_path), size, quality, use_craft)
 
     cmd = ["codex", "exec", "-s", "workspace-write"]
     refs = [] if not ref else ([ref] if isinstance(ref, str) else list(ref))
@@ -147,6 +162,7 @@ def run_batch(jobs: list[dict], concurrency: int) -> int:
         ok, msg = generate_one(
             prompt=job["prompt"], out=job["out"],
             size=job.get("size"), quality=job.get("quality"), ref=job.get("ref"),
+            use_craft=job.get("craft", True),
         )
         return i, ok, msg
 
@@ -173,6 +189,10 @@ def main() -> int:
                          "如 --ref 像素品牌资产.png --ref 品牌Logo库/OpenAI/ChatGPT.svg")
     ap.add_argument("--batch", help="JSONL 文件，每行一个 job")
     ap.add_argument("--concurrency", type=int, default=3, help="批量并发数（默认3，订阅额度勿过高）")
+    ap.add_argument("--craft", action="store_true", default=True,
+                    help="先过 craft_prompt 加工再发（默认开）")
+    ap.add_argument("--no-craft", dest="craft", action="store_false",
+                    help="关闭 prompt 加工，原样透传（调试用）")
     args = ap.parse_args()
 
     # 前置：确认 codex 在
@@ -207,7 +227,7 @@ def main() -> int:
     if not args.prompt or not args.out:
         _eprint("Error: 单图模式需要 --prompt 和 --out（或用 --batch）")
         return 2
-    ok, msg = generate_one(args.prompt, args.out, args.size, args.quality, args.ref)
+    ok, msg = generate_one(args.prompt, args.out, args.size, args.quality, args.ref, args.craft)
     _eprint(("✅ " if ok else "❌ ") + msg)
     return 0 if ok else 1
 

@@ -434,6 +434,17 @@ $LOGO_LIB/
 
 **写完 9.5 分的 prompt 不是终点——本 skill 自带生成链路，能直接把图生出来。** 配套脚本 `scripts/gen_via_codex.py` 调用 codex 内置 `$imagegen`（gpt-image-2），**走 codex login 的订阅额度，不需要 `OPENAI_API_KEY`**。
 
+### 门禁层：两条生图链路默认过 `craft_prompt.py`
+
+`gen_via_codex.py` 和 `gen_via_chatgpt_web.py` **默认先把 prompt 送进 `scripts/craft_prompt.py` 再发给模型**（`--no-craft` 才透传）。craft 是红线 1.2/3/4 的脚本化，只做四件事：
+
+1. 识别三槽位真名（报告，不改写——真名来自你的方法论或 `vibe.py` 查表）
+2. 补「图里描述性文字用中文」（红线 1.2——不显式说，模型默认跳英文，实测翻车过）
+3. 补「无水印」；风格锚点是报刊品牌（The Economist / WSJ / Field Notes 等）时补「严禁左上角外文 nameplate」（红线 3 实测陷阱）
+4. 补尺寸 → 跑 `lint_prompt.py` 5 项自检（红线 4），有 FAIL **拒绝生图**
+
+> 注意边界：craft 是**门禁层**（保下限），不是增益层。增益由「真名 + 你按方法论组织的 prompt」完成——说「Criterion」一个词，模型自动带出 NO. 编号/manifesto/curated stamp，这是模型的知识。craft 不重写这些，也写不出来。
+
 ### 单图
 
 **纯生图（无品牌一致性诉求）**：

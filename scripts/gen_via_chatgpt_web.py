@@ -35,6 +35,12 @@ from pathlib import Path
 BRIDGE = os.environ.get("BRIDGE_URL", "http://127.0.0.1:8765").rstrip("/")
 SUBMIT_TIMEOUT = int(os.environ.get("GEN_WEB_TIMEOUT", "620"))
 
+# 本仓库自带的 prompt 加工层（SKILL.md 红线 1.2/3/4 的脚本化）。
+# 默认开启：用户原话先过 craft 再进模型——「图里文字用中文」「无水印」等约束
+# 是脚本真实补的，不是文档里编的。--no-craft 可关（调试透传时用）。
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from craft_prompt import craft as craft_prompt  # noqa: E402
+
 # 只跟本地桥通信，彻底绕开系统/公司 HTTP 代理（否则 127.0.0.1 会被代理 502）
 _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
@@ -94,16 +100,30 @@ def _verify_size(out: Path) -> str:
             return "?"
 
 
-def _build_prompt(prompt: str, size: str | None, quality: str | None) -> str:
-    """网页版没有 --size/--quality 参数，把尺寸/质量诉求拼进自然语言。"""
-    parts = [prompt]
+def _build_prompt(prompt: str, size: str | None, quality: str | None,
+                  use_craft: bool = True, invite: bool = False) -> tuple[str, dict | None]:
+    """网页版没有 --size/--quality 参数，把尺寸/质量诉求拼进自然语言。
+
+    先过 craft_prompt（SKILL.md 加工规则脚本化）：识别真名、补中文约束、
+    补无水印、出版物 nameplate 防护，再拼尺寸。返回 (最终 prompt, 加工记录)。
+    """
+    crafted_info = None
+    if use_craft:
+        r = craft_prompt(prompt, size=None, invite=invite)
+        text = r["crafted"]
+        crafted_info = r
+        for s in r["steps"]:
+            _eprint(f"  · craft: {s}")
+    else:
+        text = prompt.strip()
+    parts = [text]
     if size:
         parts.append(f"图片尺寸严格 {size} 像素。")
     if quality:
         parts.append("用最高质量渲染。" if quality == "high" else f"质量 {quality}。")
     # 逼模型直接出图，别回文字/追问（否则 content.js 等不到 <img>）
     parts.append("请直接生成这张图片，不要追问、不要只回文字。")
-    return " ".join(parts)
+    return " ".join(parts), crafted_info
 
 
 def _load_refs(refs) -> list[dict]:
@@ -120,14 +140,21 @@ def _load_refs(refs) -> list[dict]:
     return out
 
 
-def generate_one(prompt: str, out: str, size=None, quality=None, ref=None) -> tuple[bool, str]:
+def generate_one(prompt: str, out: str, size=None, quality=None, ref=None,
+                 use_craft: bool = True, invite: bool = False) -> tuple[bool, str]:
     out_path = Path(out)
     try:
         refs = _load_refs([ref] if isinstance(ref, str) else ref) if ref else []
     except FileNotFoundError as e:
         return False, str(e)
+    final_prompt, crafted = _build_prompt(prompt, size, quality, use_craft, invite)
+    if crafted:
+        _eprint(f"  原始: {prompt.strip()}")
+        _eprint(f"  加工后: {crafted['crafted']}")
+        if crafted["lint"]["fails"]:
+            return False, f"craft 自检有 {crafted['lint']['fails']} 个 FAIL，禁止生图（先改 prompt）"
     payload = {
-        "prompt": _build_prompt(prompt, size, quality),
+        "prompt": final_prompt,
         "size": size, "quality": quality,
         "refImages": refs, "timeout": SUBMIT_TIMEOUT,
     }
@@ -156,7 +183,8 @@ def run_batch(jobs, concurrency) -> int:
 
     def _do(i, job):
         ok, msg = generate_one(job["prompt"], job["out"], job.get("size"),
-                               job.get("quality"), job.get("ref"))
+                               job.get("quality"), job.get("ref"),
+                               job.get("craft", True), job.get("invite", False))
         return i, ok, msg
 
     with ThreadPoolExecutor(max_workers=concurrency) as ex:
@@ -179,6 +207,12 @@ def main() -> int:
     ap.add_argument("--ref", action="append", help="参考图路径（图生图，实验性）")
     ap.add_argument("--batch", help="JSONL 文件，每行一个 job")
     ap.add_argument("--concurrency", type=int, default=2)
+    ap.add_argument("--craft", action="store_true", default=True,
+                    help="先过 craft_prompt 加工再发（默认开）")
+    ap.add_argument("--no-craft", dest="craft", action="store_false",
+                    help="关闭 prompt 加工，原样透传（调试用）")
+    ap.add_argument("--invite", action="store_true",
+                    help="写入 invite 命名贡献指令（包装/手册类提分用）")
     ap.add_argument("--health", action="store_true", help="只检查桥+扩展是否在线")
     args = ap.parse_args()
 
@@ -213,7 +247,8 @@ def main() -> int:
     if not args.prompt or not args.out:
         _eprint("Error: 单图模式需要 --prompt 和 --out（或用 --batch / --health）")
         return 2
-    ok, msg = generate_one(args.prompt, args.out, args.size, args.quality, args.ref)
+    ok, msg = generate_one(args.prompt, args.out, args.size, args.quality, args.ref,
+                           args.craft, args.invite)
     _eprint(("✅ " if ok else "❌ ") + msg)
     return 0 if ok else 1
 
