@@ -25,7 +25,7 @@ import argparse
 import base64
 import json
 import os
-import subprocess
+import tempfile
 import sys
 import urllib.request
 import urllib.error
@@ -34,6 +34,13 @@ from pathlib import Path
 
 BRIDGE = os.environ.get("BRIDGE_URL", "http://127.0.0.1:8765").rstrip("/")
 SUBMIT_TIMEOUT = int(os.environ.get("GEN_WEB_TIMEOUT", "620"))
+
+# 本仓库自带的 prompt 加工层（SKILL.md 红线 1.2/3/4 的脚本化）。
+# 默认开启：用户原话先过 craft 再进模型——「图里文字用中文」「无水印」等约束
+# 是脚本真实补的，不是文档里编的。--no-craft 可关（调试透传时用）。
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from craft_prompt import craft as craft_prompt  # noqa: E402
+from image_output import parse_size, publish_image, validate_jobs
 
 # 只跟本地桥通信，彻底绕开系统/公司 HTTP 代理（否则 127.0.0.1 会被代理 502）
 _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -54,14 +61,18 @@ def _http(method: str, path: str, payload: dict | None = None, timeout: int = 32
     try:
         with _opener.open(req, timeout=timeout) as r:
             body = r.read().decode("utf-8")
-            return r.status, (json.loads(body) if body else {})
+            decoded = json.loads(body) if body else {}
+            if not isinstance(decoded, dict):
+                return 0, {"error": "桥返回了非对象 JSON"}
+            return r.status, decoded
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "ignore")
         try:
-            return e.code, json.loads(body)
+            decoded = json.loads(body)
+            return e.code, decoded if isinstance(decoded, dict) else {"error": body[:200]}
         except Exception:
             return e.code, {"error": body[:200]}
-    except urllib.error.URLError as e:
+    except (urllib.error.URLError, OSError, ValueError) as e:
         return 0, {"error": f"连不上本地桥 {BRIDGE}（server.py 没跑？）: {e}"}
 
 
@@ -74,36 +85,30 @@ def check_health() -> tuple[bool, str]:
     return True, "桥 + 扩展均在线"
 
 
-def _verify_size(out: Path) -> str:
-    try:
-        from PIL import Image  # noqa
-        with Image.open(out) as im:
-            return f"{im.width}x{im.height}"
-    except Exception:
-        try:
-            r = subprocess.run(["sips", "-g", "pixelWidth", "-g", "pixelHeight", str(out)],
-                               capture_output=True, text=True, timeout=15)
-            w = h = "?"
-            for ln in r.stdout.splitlines():
-                if "pixelWidth" in ln:
-                    w = ln.split(":")[-1].strip()
-                if "pixelHeight" in ln:
-                    h = ln.split(":")[-1].strip()
-            return f"{w}x{h}"
-        except Exception:
-            return "?"
+def _build_prompt(prompt: str, size: str | None, quality: str | None,
+                  use_craft: bool = True, invite: bool = False) -> tuple[str, dict | None]:
+    """网页版没有 --size/--quality 参数，把尺寸/质量诉求拼进自然语言。
 
-
-def _build_prompt(prompt: str, size: str | None, quality: str | None) -> str:
-    """网页版没有 --size/--quality 参数，把尺寸/质量诉求拼进自然语言。"""
-    parts = [prompt]
+    先过 craft_prompt（SKILL.md 加工规则脚本化）：识别真名、补中文约束、
+    补无水印、出版物 nameplate 防护，再拼尺寸。返回 (最终 prompt, 加工记录)。
+    """
+    crafted_info = None
+    if use_craft:
+        r = craft_prompt(prompt, size=None, invite=invite)
+        text = r["crafted"]
+        crafted_info = r
+        for s in r["steps"]:
+            _eprint(f"  · craft: {s}")
+    else:
+        text = prompt.strip()
+    parts = [text]
     if size:
         parts.append(f"图片尺寸严格 {size} 像素。")
     if quality:
         parts.append("用最高质量渲染。" if quality == "high" else f"质量 {quality}。")
     # 逼模型直接出图，别回文字/追问（否则 content.js 等不到 <img>）
     parts.append("请直接生成这张图片，不要追问、不要只回文字。")
-    return " ".join(parts)
+    return " ".join(parts), crafted_info
 
 
 def _load_refs(refs) -> list[dict]:
@@ -120,14 +125,22 @@ def _load_refs(refs) -> list[dict]:
     return out
 
 
-def generate_one(prompt: str, out: str, size=None, quality=None, ref=None) -> tuple[bool, str]:
+def generate_one(prompt: str, out: str, size=None, quality=None, ref=None,
+                 use_craft: bool = True, invite: bool = False) -> tuple[bool, str]:
     out_path = Path(out)
     try:
+        parse_size(size)
         refs = _load_refs([ref] if isinstance(ref, str) else ref) if ref else []
-    except FileNotFoundError as e:
+    except (OSError, ValueError) as e:
         return False, str(e)
+    final_prompt, crafted = _build_prompt(prompt, size, quality, use_craft, invite)
+    if crafted:
+        _eprint(f"  原始: {prompt.strip()}")
+        _eprint(f"  加工后: {crafted['crafted']}")
+        if crafted["lint"]["fails"]:
+            return False, f"craft 自检有 {crafted['lint']['fails']} 个 FAIL，禁止生图（先改 prompt）"
     payload = {
-        "prompt": _build_prompt(prompt, size, quality),
+        "prompt": final_prompt,
         "size": size, "quality": quality,
         "refImages": refs, "timeout": SUBMIT_TIMEOUT,
     }
@@ -141,22 +154,30 @@ def generate_one(prompt: str, out: str, size=None, quality=None, ref=None) -> tu
     b64 = j.get("imageBase64")
     if not b64:
         return False, "桥返回成功但没有图片数据"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_bytes(base64.b64decode(b64))
-    dims = _verify_size(out_path)
-    note = ""
-    if size and dims != "?" and dims.replace(" ", "") != size.replace(" ", ""):
-        note = f" ⚠️尺寸{dims}≠请求{size}（网页版不保证精确尺寸，需手动 sips 后处理）"
-    return True, f"{out_path} [{dims}]{note}"
+    try:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=".image-web-", dir=out_path.parent) as directory:
+            staged = Path(directory) / "response.png"
+            staged.write_bytes(base64.b64decode(b64, validate=True))
+            dims = publish_image(staged, out_path, size)
+        return True, f"{out_path} [{dims}]"
+    except (OSError, ValueError, TypeError) as error:
+        return False, f"图片验收失败: {error}"
 
 
 def run_batch(jobs, concurrency) -> int:
+    try:
+        validate_jobs(jobs)
+    except (ValueError, TypeError) as error:
+        _eprint(f"Error: {error}")
+        return 2
     _eprint(f"批量 {len(jobs)} 张，提交并发 {concurrency}（浏览器侧串行执行，慢属正常）")
     failed = 0
 
     def _do(i, job):
         ok, msg = generate_one(job["prompt"], job["out"], job.get("size"),
-                               job.get("quality"), job.get("ref"))
+                               job.get("quality"), job.get("ref"),
+                               job.get("craft", True), job.get("invite", False))
         return i, ok, msg
 
     with ThreadPoolExecutor(max_workers=concurrency) as ex:
@@ -174,11 +195,17 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="走 ChatGPT 网页版额度的生图链路")
     ap.add_argument("--prompt")
     ap.add_argument("--out")
-    ap.add_argument("--size", help="如 1410x600；网页版不保证精确，脚本会校验并提示")
+    ap.add_argument("--size", help="如 1410x600；脚本居中裁剪并缩放到精确尺寸")
     ap.add_argument("--quality", choices=["low", "medium", "high"])
     ap.add_argument("--ref", action="append", help="参考图路径（图生图，实验性）")
     ap.add_argument("--batch", help="JSONL 文件，每行一个 job")
     ap.add_argument("--concurrency", type=int, default=2)
+    ap.add_argument("--craft", action="store_true", default=True,
+                    help="先过 craft_prompt 加工再发（默认开）")
+    ap.add_argument("--no-craft", dest="craft", action="store_false",
+                    help="关闭 prompt 加工，原样透传（调试用）")
+    ap.add_argument("--invite", action="store_true",
+                    help="写入 invite 命名贡献指令（包装/手册类提分用）")
     ap.add_argument("--health", action="store_true", help="只检查桥+扩展是否在线")
     args = ap.parse_args()
 
@@ -203,8 +230,12 @@ def main() -> int:
             ln = raw.strip()
             if not ln or ln.startswith("#"):
                 continue
-            job = json.loads(ln)
-            if "prompt" not in job or "out" not in job:
+            try:
+                job = json.loads(ln)
+            except json.JSONDecodeError as error:
+                _eprint(f"Error: 第 {n} 行 JSON 解析失败: {error}")
+                return 2
+            if not isinstance(job, dict) or "prompt" not in job or "out" not in job:
                 _eprint(f"Error: 第 {n} 行缺 prompt 或 out")
                 return 2
             jobs.append(job)
@@ -213,7 +244,8 @@ def main() -> int:
     if not args.prompt or not args.out:
         _eprint("Error: 单图模式需要 --prompt 和 --out（或用 --batch / --health）")
         return 2
-    ok, msg = generate_one(args.prompt, args.out, args.size, args.quality, args.ref)
+    ok, msg = generate_one(args.prompt, args.out, args.size, args.quality, args.ref,
+                           args.craft, args.invite)
     _eprint(("✅ " if ok else "❌ ") + msg)
     return 0 if ok else 1
 

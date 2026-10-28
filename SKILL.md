@@ -166,12 +166,78 @@ Anthropic 风格的编辑插画封面：一只手从右下伸入，食指点向�
 
 ---
 
+## 🆘 用户只有「感觉」怎么办（小白 / 甲方模式）
+
+红线 3 要求三槽位填真名 —— 但大多数用户填不出，他们只会说「高级感」「温暖」「科技感」。
+**这不是用户的问题，是这套方法的入口太高。**
+
+关键认知：**填真名的本质是把设计决策外包给模型记忆里的高密度概念。既然决策是外包给模型的，名字由谁给出并不重要** —— 用户可以给，模型也可以给。
+
+### 触发信号（命中任意一条 → 先走本节）
+
+- 用户的话里没有一个专有名词，只有形容词 + 场景
+- 用户说「你看着办」「随便」「差不多就行」
+- 甲方口吻：只给感觉，给不出任何参照
+
+### 三步翻译
+
+| 步 | 做什么 | 约束 |
+|---|---|---|
+| 1 | 查 [references/vibe-to-name.md](references/vibe-to-name.md)，把感觉词换成 3 个候选真名 | 优先选大众可识别的（表里标 🌐 的） |
+| 2 | 给用户选：3 个候选 + 一句话区别 + 一个默认值 | **一轮为限**，必须自带默认值 |
+| 3 | 用户连文字候选也想象不出 → 出九宫格编号看板让他指认 | 见下方「九宫格盲测」 |
+| 4 | 仍填不出 → 用元 prompt（见下），让模型先自报 3 个参照再生成 | 零成本，永远可用 |
+
+### 九宫格盲测：`scripts/blind_test.py`
+
+文字候选也有选不出来的时候 —— 用户看着「无印良品」三个字想象不出长什么样。
+那就把卡片换成图：一次给出九张编号风格卡，用户只要说「我要 3 号」。
+
+```bash
+python scripts/blind_test.py 高级感                    # 检索 + 出编号看板（不生图）
+python scripts/blind_test.py 高级感 --images-dir DIR    # 贴本地参考图库的真实示意
+python scripts/blind_test.py 高级感 --pick 3 --generate --subject "大疆 pocket3 说明书"
+python scripts/blind_test.py 高级感 --variants 4 --generate --subject "..."   # 明确要 4 种
+```
+
+两条原则，都是为省额度：
+
+1. **检索优先** —— 九宫格里放的是**检索回来的参考图**（没有图就本地渲染文字卡），
+   不是新生成的九张图。**盲测阶段一次生图接口都不许调。**
+2. **生成克制** —— 指认之后默认只生成选中的那 1 张。
+   只有用户明确说要多种风格时才加 `--variants N`（那会烧 N 次额度）。
+
+候选默认跨家族轮转（避免九张雷同），一个感觉词只命中 3 个候选时，
+会从其他感觉家族补足并在输出里标 `＋`，不要把它们当成同样贴题的选项。
+
+### 元 prompt 模板
+
+```
+[用户需求一句话]。我不确定该用什么风格参照，请你先说出 3 个最匹配的
+（设计师 / 品牌 / 媒介范式）参照，各用一句话说明你会从它身上借什么，
+然后选一个最合适的，按它生成。
+```
+
+模型每次都会解释「借了什么」——用户被动积累名字库，用久了就不需要这张表了。
+
+### 🔴 本节硬约束
+
+- **禁止**因为用户说不出名字就直接堆形容词生成（那正是红线 3 禁止的）
+- **禁止**开放题追问（「你想要什么风格？」）—— 小白答不上来，只出选择题
+- **最多一轮**追问，用户不回就按默认值生成，不要卡住
+- **禁止**在用户还没指认之前就批量生成多个风格（生图接口很贵）——
+  盲测阶段只检索；要多种风格必须等用户明确说出来
+- 拿到真名之后，照常跑红线 4 的 5 项自检 —— 本表只解决「名字从哪来」
+
+---
+
 ## 使用入口决策
 
 收到任务后**先判断**：
 
 | 任务类型 | 走哪条路 |
 |---|---|
+| 🆘 **用户只给「感觉」、说不出任何名字**（「高级感」「温暖」「科技感」） | **先走上方「🆘 用户只有『感觉』怎么办」** → 查 `references/vibe-to-name.md` 把感觉翻译成真名，再回到本表对应流程 |
 | 🔴 **给花叔做配图**（公众号封面 / 正文图 / 小红书图 / 视频封面 / 任何有品牌识别诉求的图）| **强制走下面「🎯 花叔配图默认 SOP」专章**——默认 `--ref` 品牌资产 + 显式禁外文 nameplate，不要走通用单图流程撞墙 |
 | 一张图（封面 / 海报 / banner / 包装 / UI / 配图 / slide，**且无品牌识别诉求**）| **走「单图生成」**——先读 [single-image-playbook.md](references/single-image-playbook.md) |
 | 一批同类素材（icon 集 / 角色集 / 卡牌 / sprite sheet）| **走「批量生成」**——读下方批量章节 + [prompt-patterns.md](references/prompt-patterns.md) |
@@ -285,7 +351,7 @@ $LOGO_LIB/
    - 透明背景 / >20 张批量 → 切 API 路径
 
 6. **验收**（输入：生成的图 → 输出：通过 / 回到第 2-3 步）
-   - 尺寸是否精确（sips 已自动后处理）
+   - 尺寸是否精确（脚本已用 Pillow 居中裁剪、缩放）
    - 中文是否准确（每个字都对）
    - 关键信息是否在中央安全区（多端适配场景）
    - 设计史细节是否真实（年代/口号/合作品牌 - 自己核实，模型会串台）
@@ -368,6 +434,17 @@ $LOGO_LIB/
 
 **写完 9.5 分的 prompt 不是终点——本 skill 自带生成链路，能直接把图生出来。** 配套脚本 `scripts/gen_via_codex.py` 调用 codex 内置 `$imagegen`（gpt-image-2），**走 codex login 的订阅额度，不需要 `OPENAI_API_KEY`**。
 
+### 门禁层：两条生图链路默认过 `craft_prompt.py`
+
+`gen_via_codex.py` 和 `gen_via_chatgpt_web.py` **默认先把 prompt 送进 `scripts/craft_prompt.py` 再发给模型**（`--no-craft` 才透传）。craft 是红线 1.2/3/4 的脚本化，只做四件事：
+
+1. 识别三槽位真名（报告，不改写——真名来自你的方法论或 `vibe.py` 查表）
+2. 补「图里描述性文字用中文」（红线 1.2——不显式说，模型默认跳英文，实测翻车过）
+3. 补「无水印」；风格锚点是报刊品牌（The Economist / WSJ / Field Notes 等）时补「严禁左上角外文 nameplate」（红线 3 实测陷阱）
+4. 补尺寸 → 跑 `lint_prompt.py` 5 项自检（红线 4），有 FAIL **拒绝生图**
+
+> 注意边界：craft 是**门禁层**（保下限），不是增益层。增益由「真名 + 你按方法论组织的 prompt」完成——说「Criterion」一个词，模型自动带出 NO. 编号/manifesto/curated stamp，这是模型的知识。craft 不重写这些，也写不出来。
+
 ### 单图
 
 **纯生图（无品牌一致性诉求）**：
@@ -387,7 +464,7 @@ python3 scripts/gen_via_codex.py \
 ```
 
 - `--prompt` 填你按上面方法论写好的中文短 prompt
-- `--size` 支持非标比例（如 1410×600），agent 生成后会自动后处理到精确尺寸
+- `--size` 支持非标比例（如 1410×600），脚本用 Pillow 居中裁剪并缩放到精确尺寸（注意边缘内容安全区）
 - `--quality` 密集布局/中文/卡牌用 `high`
 - `--ref <图>` 走图生图（参考图改写）—— **给花叔做配图默认带这个参数**，不要先走纯生图试错
 
@@ -400,7 +477,7 @@ python3 scripts/gen_via_codex.py \
 python3 scripts/gen_via_codex.py --batch jobs.jsonl --concurrency 3
 ```
 
-失败的 job 打到 stderr 不中断其余；脚本自动校验尺寸、agent 没搬图时从 `~/.codex/generated_images/` 兜底搬运。
+失败的 job 打到 stderr 不中断其余；脚本为每个任务创建独立临时目录；仅在进程成功且图片可解码时发布到目标路径，并校正尺寸。没有任务文件就报错，禁止从共享目录猜测并搬运最新图片。
 
 ⚠️ **多 agent 并行**：codex 链路同一时刻只允许一个 agent 在用（兜底目录共享，跨 agent 并发会串图；从兜底搬运时先比对图片内容再取）。要多 agent 并行提速 → 第二个 agent 走 Lovart 链路（独立通道，无串图风险，ref 姿势见 `配图/封面方法论.md` 的 Lovart 垫图节）。
 
@@ -412,20 +489,20 @@ python3 scripts/gen_via_codex.py --batch jobs.jsonl --concurrency 3
 |---|---|---|---|
 | 计费 | codex 订阅额度，0 API 费 | ChatGPT **网页版**订阅额度，0 API 费 | 按量计费，需 `OPENAI_API_KEY` |
 | 额度桶 | codex 桶——**较紧**，用几次易 429 | 网页版桶——Plus/Pro **宽得多**（独立于 codex 桶）| 看钱包 |
-| 参数控制 | 尺寸/quality 靠自然语言传给 agent | 同左（拼进 prompt，不保证精确尺寸）| 精确 `--size/--quality/--n/--background` |
+| 参数控制 | 尺寸/quality 靠自然语言传给 agent | 同左，脚本后处理保证像素尺寸| 精确 `--size/--quality/--n/--background` |
 | 批量 | 多进程并发（建议 ≤3） | 浏览器侧**串行**（慢，但能跑）| `generate-batch`，并发 5-25 |
 | 透明背景 | 不稳 | 不稳 | `--model gpt-image-1.5 --background transparent` |
 | 前置 | `codex login` | 装 Chrome 扩展 + 跑本地桥 + chatgpt.com 已登录（见 `chatgpt-web-bridge/README.md`）| `OPENAI_API_KEY` |
 | 适合 | 边写代码边出图、日常配图、省钱 | **codex 桶 429/耗尽**时续命 | 大批量（>20张）、要精确参数/透明底 |
 
-**默认走订阅路径**。codex 桶报 429/额度耗尽 → 切**网页版路径**（最划算的 fallback，吃另一个更宽的桶）。要透明底/精确参数/大批量 → 切 API 路径（需 key）。
+**默认走订阅路径**。codex 桶报 429/额度耗尽 → 脚本自动检查并切换**网页版路径**（可用 `--no-fallback` 禁用）（最划算的 fallback，吃另一个更宽的桶）。要透明底/精确参数/大批量 → 切 API 路径（需 key）。
 
 ### 实测能力边界
 
 - ✅ 非标比例精确：1410×600 / 1024×1024 / 512×512 全部精确命中
 - ✅ 中文大字准确：「AI 编程」等中文渲染完美
 - ✅ 单图耗时 ~60-130s；并发 2 张墙钟 ~93s（比串行省 ~40%）
-- ✅ agent 生成后自动 `sips` 后处理到请求尺寸
+- ✅ 脚本用 Pillow 后处理到请求尺寸（居中裁剪，保持主体比例）
 - ⚠️ `codex exec -i` 是变长参数会吞 prompt——脚本已用 stdin 传 prompt 规避，手搓命令时注意
 
 ### 🔌 网页版路径实战踩坑（2026-10-17 全链路实测跑通，改代码前先读这段）
@@ -505,11 +582,11 @@ curl -s http://127.0.0.1:8765/reload
 | 失败现象 | 触发条件 | 一线修复 | 仍失败兜底 |
 |---|---|---|---|
 | 订阅路径 429 / 额度耗尽 | `gen_via_codex.py` 报 quota 类错误 | **切网页版路径** `python3 scripts/gen_via_chatgpt_web.py --prompt ... --out ...`（吃网页版那个更宽的额度桶，0 API 费；前置见 `chatgpt-web-bridge/README.md`，先 `--health` 确认桥+扩展在线）| 网页版桶也满 → 切 API 路径 `image_gen.py`（需 `OPENAI_API_KEY`），或等 N 分钟 |
-| 订阅路径产图但没搬到 `--out` | agent 生成完图但路径不对 | 脚本会自动从 `~/.codex/generated_images/` 兜底搬运 | 手动 `cp ~/.codex/generated_images/<最新文件> <out_path>` |
+| 订阅路径没有写入任务文件 | agent 生成完图但保存路径不对 | 脚本报错并保留原目标文件；核查 agent 输出和任务保存路径 | 确认图片属于该任务后人工恢复；禁止按共享目录最新时间猜测归属 |
 | 透明背景不稳 | 订阅路径无法精确控背景 | 切 API 路径 `--model gpt-image-1.5 --background transparent` | 后处理：`magick input.png -fuzz 5% -transparent white output.png` |
 | **无 API key 做透明 PNG**（`.env` 里 `OPENAI_API_KEY` 是占位符 `your_..._here`，API 路径走不通）| API 路径不可用 + 订阅路径透明不稳 | **纯色幕布 + 抠图**：订阅路径在主体配色里**不存在**的纯平涂色上生成（萌系白橙绿角色用湖蓝 `#2E7BE4`，prompt 写「纯平涂湖蓝背景#2E7BE4，无渐变无阴影，留边距」），再跑 `python3 scripts/chroma_key.py in.png out.png`（全局色距抠图，能清掉钳/臂夹缝里的封闭色块 + alpha 内缩去彩色毛边）| 角色一致性：先抠一张干净 master，再用 master 当 `--ref` 生其它姿态（实测一致性强）|
 | 大批量（>20张）并发不够 | 订阅路径 `--concurrency 3` 太慢 | 切 API 路径 `generate-batch` 子命令，并发 5-25 | 拆批分多次跑，每批 ≤20 |
-| 尺寸非标导致后处理失真 | 1410×600 这种非标比例 | 脚本已自动 `sips` 后处理 | 手动用 `magick` 重新插值（`-filter Lanczos`）|
+| 尺寸非标导致后处理失真 | 1410×600 这种非标比例 | 脚本已用 Pillow 居中裁剪、缩放到精确尺寸 | 手动用 `magick` 重新插值（`-filter Lanczos`）|
 
 **原则**：先一线修复（成本低、不切路径），再 fallback（换工具/换路径）。每个 fallback 都要在 results / log 里记一笔，下次同样错误直接走 fallback。
 
@@ -563,6 +640,8 @@ curl -s http://127.0.0.1:8765/reload
 6. **调优**：如果有残留/缺失，参考 `extraction-strategies.md` 调阈值
 
 ### 脚本工具
+
+运行需要 Python >=3.10；在仓库根目录 `python -m pip install .` 安装 Pillow / NumPy。Windows 使用 PATH 中的 Codex CLI，无需 `which` 或 `sips`。详见 README 安装说明。
 
 | 脚本 | 用途 |
 |------|------|

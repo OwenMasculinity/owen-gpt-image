@@ -12,5 +12,12 @@ __pycache__/
 .env
 # 生成输出与临时目录
 /output/
+/outputs/
 /tmp/
 .last-update-check
+.blind-test-history.json
+blind-test-board.png
+
+.venv/
+build/
+*.egg-info/

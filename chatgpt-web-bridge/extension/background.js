@@ -131,6 +131,20 @@ const READ_COMPOSER_JS = `(() => {
 
 const COUNT_USER_TURNS_JS = `document.querySelectorAll('[data-message-author-role="user"]').length`;
 
+const SEND_BUTTON_POINT_JS = `(() => {
+  const selectors = ['button#composer-submit-button', 'button[data-testid="send-button"]',
+    'button[aria-label="发送"]', 'button[aria-label="Send"]', 'button.composer-submit-btn'];
+  for (const selector of selectors) {
+    const button = document.querySelector(selector);
+    if (!button || button.disabled) continue;
+    const rect = button.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
+    }
+  }
+  return null;
+})()`;
+
 function cdpEvaluate(tabId, expression) {
   return cdp(tabId, "Runtime.evaluate", { expression, returnByValue: true, awaitPromise: false })
     .then((r) => (r && r.result ? r.result.value : null));
@@ -160,15 +174,30 @@ async function doCdpInput(tabId, msg) {
   // 3) 回车发送（浏览器级按键，React 的 onKeyDown 正常收到）
   if (msg.enter) {
     const before = await cdpEvaluate(tabId, COUNT_USER_TURNS_JS);
+    const beforeText = await cdpEvaluate(tabId, READ_COMPOSER_JS);
     const key = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 };
     await cdp(tabId, "Input.dispatchKeyEvent", { type: "rawKeyDown", ...key });
     await cdp(tabId, "Input.dispatchKeyEvent", { type: "char", text: "\r", ...key });
     await cdp(tabId, "Input.dispatchKeyEvent", { type: "keyUp", ...key });
     await new Promise((r) => setTimeout(r, 1200));
-    const after = await cdpEvaluate(tabId, COUNT_USER_TURNS_JS);
-    const remaining = await cdpEvaluate(tabId, READ_COMPOSER_JS);
+    let after = await cdpEvaluate(tabId, COUNT_USER_TURNS_JS);
+    let remaining = await cdpEvaluate(tabId, READ_COMPOSER_JS);
+    // Some composer versions ignore Enter (including IME/Grammarly setups).
+    // Retry only while the original draft is still present and no new user turn
+    // has appeared; never click a second time after an accepted submission.
+    if (Number(after) <= Number(before) && remaining && remaining === beforeText) {
+      const point = await cdpEvaluate(tabId, SEND_BUTTON_POINT_JS);
+      if (point) {
+        await cdp(tabId, "Input.dispatchMouseEvent", {type: "mousePressed", ...point, button: "left", clickCount: 1});
+        await cdp(tabId, "Input.dispatchMouseEvent", {type: "mouseReleased", ...point, button: "left", clickCount: 1});
+        await new Promise((r) => setTimeout(r, 1500));
+        after = await cdpEvaluate(tabId, COUNT_USER_TURNS_JS);
+        remaining = await cdpEvaluate(tabId, READ_COMPOSER_JS);
+        out.steps.push("发送按钮点击兜底");
+      }
+    }
     out.steps.push(`userTurns ${before}->${after} composer残留=${String(remaining || "").length}`);
-    out.sent = Number(after) > Number(before);
+    out.sent = Number(after) > Number(before) || (Boolean(beforeText) && remaining === "");
     out.userTurns = `${before}->${after}`;
   }
   out.info = out.steps.join(" | ");
