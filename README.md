@@ -172,6 +172,47 @@ git clone https://github.com/OwenMasculinity/owen-gpt-image.git ~/.claude/skills
 
 ---
 
+### 3.1 运行环境与安装依赖
+
+需要 **Python 3.10 或更新版本**。在仓库根目录运行以下命令；Windows 请先用
+`python --version` 确认没有误用旧版 Anaconda，必要时用 `py -3.11` 替换 `python`。
+
+```bash
+python -m venv .venv
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+# macOS / Linux
+# source .venv/bin/activate
+python -m pip install .
+python -m unittest discover -s tests -v
+```
+
+`pip install .` 安装本仓库声明的 Pillow / NumPy 依赖，脚本仍从克隆目录运行。
+Codex 路径另外需要可在 PATH 中找到的 `codex` CLI，并完成 `codex login`；
+网页路径需要已启动的本地桥和已连接的 Chrome 扩展。
+
+两条入口都会验证返回图片，并用 Pillow 保存为 PNG。指定 `--size` 时，
+先按目标比例**居中裁剪**，再缩放到精确像素，不拉伸主体；边缘内容可能裁掉，
+文字和重要元素应放在安全区。未指定尺寸则保留原始像素尺寸。
+每个任务使用独立临时目录，验收成功后原子替换目标文件，失败时保留原文件；
+批量任务不允许多个 job 写入同一路径。不同脚本进程也应使用不同输出路径。
+
+Codex 返回 429 / quota / usage limit 错误时，入口自动检查网页桥并切换；
+认证失败、超时和其他错误不会触发切换。可传 `--no-fallback` 禁用。
+桥未准备好时会清楚报告两条链路的失败原因，不会启动按量付费 API。
+
+若 Codex 返回 `model_not_found` / 模型不支持当前账户，可通过 `--model <可用模型>`
+或环境变量 `GEN_CODEX_MODEL` 指定模型。优先级为 JSONL job 的 `model`、命令行
+`--model`、环境变量、CLI 默认配置；脚本不会修改全局配置或猜测替代模型。
+模型需要支持图像生成工具，具体可用性以当前账户为准。
+参数依据：[Codex CLI 官方参考](https://developers.openai.com/codex/cli/reference)。
+
+九宫格默认检索仓库 `docs/cases` 的少量案例，也可设置 `IMAGE_LIB` 或
+`--images-dir` 指向完整图库。缺图时只显示文字占位卡，命令输出会报告缺图数量；
+占位卡的底色不代表该风格。JSON 输出提供 `reference_count` / `placeholder_count`。
+
+---
+
 ## 四 · 核心概念
 
 方法论、`SKILL.md` 里的规则、几条生成路、批量和排错——都在这里。  
@@ -220,7 +261,7 @@ git clone https://github.com/OwenMasculinity/owen-gpt-image.git ~/.claude/skills
 | 透明背景 | 不稳                          | 不稳                                 | 稳                                      |
 | 适合   | 日常配图、省钱                     | **codex 桶 429 时的主力 fallback**      | 大批量（>20 张）/ 要精确参数                      |
 
-**默认走订阅路径；报 429 或额度耗尽 → 切网页版路径**（吃另一个更宽的桶，仍然 0 API 费）。
+**默认走订阅路径；报 429 或额度耗尽 → 自动检查并切换网页版路径**（吃另一个更宽的桶，仍然 0 API 费）。
 
 ```bash
 # 订阅路径
@@ -343,7 +384,9 @@ owen-gpt-image/
 │   ├── contact_sheet.py            # 拼预览图，批量出图后肉眼验收
 │   └── chroma_key.py               # 纯色幕布抠透明（没有 API key 时的透明 PNG 方案）
 ├── tests/
-│   └── test_blind_test.py         # blind_test.py 的验收测试（含「不生图 / 只生 1 张」守门用例）
+│   ├── test_blind_test.py         # 九宫格与生成次数策略
+│   ├── test_craft_prompt.py       # 提示词门禁
+│   └── test_generation.py         # 并发隔离、失败保护、尺寸验收与额度切换
 ├── docs/
 │   └── blind-test-flow.svg        # 九宫格盲测流程示意
 └── chatgpt-web-bridge/             # 本仓库独有：把 chatgpt.com 网页版桥接成本地 HTTP API

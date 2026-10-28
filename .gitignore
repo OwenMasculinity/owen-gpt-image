@@ -17,3 +17,7 @@ __pycache__/
 .last-update-check
 .blind-test-history.json
 blind-test-board.png
+
+.venv/
+build/
+*.egg-info/

@@ -50,6 +50,13 @@ def run_main(argv):
 
 
 class TestCandidates(unittest.TestCase):
+    def test_json_reports_reference_coverage(self):
+        code, output = run_main(["高级感", "--json", "--images-dir", "/nonexistent-dir-xyz"])
+        data = json.loads(output)
+        self.assertEqual(code, 0)
+        self.assertEqual(data["reference_count"], 0)
+        self.assertEqual(data["placeholder_count"], len(data["candidates"]))
+
     def setUp(self):
         self.all = blind_test.vibe.load_table(blind_test.TABLE)
         self.hits = blind_test.vibe.match(self.all, ["高级感"])

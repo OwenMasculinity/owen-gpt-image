@@ -293,7 +293,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="九宫格盲测：检索优先，生成克制")
     ap.add_argument("vibe", help="感觉词，如 高级感 / 温暖 / 科技感")
     ap.add_argument("--top", type=int, default=9, help="候选数量，默认 9")
-    ap.add_argument("--images-dir", default=os.environ.get("IMAGE_LIB", ""),
+    ap.add_argument("--images-dir", default=os.environ.get("IMAGE_LIB", str(ROOT / "docs" / "cases")),
                     help="本地参考图库目录（也可用环境变量 IMAGE_LIB）")
     ap.add_argument("--board", default="blind-test-board.png", help="看板输出路径")
     ap.add_argument("--no-board", action="store_true", help="不生成看板")
@@ -360,6 +360,8 @@ def main(argv=None):
             "prompts": [compose_prompt(c["name"], args.subject, args.size) for c in chosen],
             "will_generate": bool(args.generate),
             "generate_count": len(chosen) if args.generate else 0,
+            "reference_count": sum(bool(c["ref"]) for c in cands),
+            "placeholder_count": sum(not c["ref"] for c in cands),
         }, ensure_ascii=False, indent=2))
         return 0
 
@@ -389,7 +391,10 @@ def main(argv=None):
         print(f"\n  ⚠️ {w}")
 
     if board_path:
-        print(f"\n  看板：{board_path}   ← 看图指认就行，不用叫出名字")
+        missing = sum(not c["ref"] for c in cands)
+        print(f"\n  看板：{board_path}")
+        if missing:
+            print(f"  其中 {missing} 张是文字占位卡，不代表真实风格效果；可用 --images-dir 补充参考图库。")
         print(f"  下一步：python scripts/blind_test.py {args.vibe} --pick <编号>")
     elif not args.no_board:
         print("\n  （Pillow 不可用，跳过看板渲染；上面清单同样可以指认）")

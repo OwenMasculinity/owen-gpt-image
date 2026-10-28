@@ -351,7 +351,7 @@ $LOGO_LIB/
    - 透明背景 / >20 张批量 → 切 API 路径
 
 6. **验收**（输入：生成的图 → 输出：通过 / 回到第 2-3 步）
-   - 尺寸是否精确（sips 已自动后处理）
+   - 尺寸是否精确（脚本已用 Pillow 居中裁剪、缩放）
    - 中文是否准确（每个字都对）
    - 关键信息是否在中央安全区（多端适配场景）
    - 设计史细节是否真实（年代/口号/合作品牌 - 自己核实，模型会串台）
@@ -464,7 +464,7 @@ python3 scripts/gen_via_codex.py \
 ```
 
 - `--prompt` 填你按上面方法论写好的中文短 prompt
-- `--size` 支持非标比例（如 1410×600），agent 生成后会自动后处理到精确尺寸
+- `--size` 支持非标比例（如 1410×600），脚本用 Pillow 居中裁剪并缩放到精确尺寸（注意边缘内容安全区）
 - `--quality` 密集布局/中文/卡牌用 `high`
 - `--ref <图>` 走图生图（参考图改写）—— **给花叔做配图默认带这个参数**，不要先走纯生图试错
 
@@ -477,7 +477,7 @@ python3 scripts/gen_via_codex.py \
 python3 scripts/gen_via_codex.py --batch jobs.jsonl --concurrency 3
 ```
 
-失败的 job 打到 stderr 不中断其余；脚本自动校验尺寸、agent 没搬图时从 `~/.codex/generated_images/` 兜底搬运。
+失败的 job 打到 stderr 不中断其余；脚本为每个任务创建独立临时目录；仅在进程成功且图片可解码时发布到目标路径，并校正尺寸。没有任务文件就报错，禁止从共享目录猜测并搬运最新图片。
 
 ⚠️ **多 agent 并行**：codex 链路同一时刻只允许一个 agent 在用（兜底目录共享，跨 agent 并发会串图；从兜底搬运时先比对图片内容再取）。要多 agent 并行提速 → 第二个 agent 走 Lovart 链路（独立通道，无串图风险，ref 姿势见 `配图/封面方法论.md` 的 Lovart 垫图节）。
 
@@ -489,20 +489,20 @@ python3 scripts/gen_via_codex.py --batch jobs.jsonl --concurrency 3
 |---|---|---|---|
 | 计费 | codex 订阅额度，0 API 费 | ChatGPT **网页版**订阅额度，0 API 费 | 按量计费，需 `OPENAI_API_KEY` |
 | 额度桶 | codex 桶——**较紧**，用几次易 429 | 网页版桶——Plus/Pro **宽得多**（独立于 codex 桶）| 看钱包 |
-| 参数控制 | 尺寸/quality 靠自然语言传给 agent | 同左（拼进 prompt，不保证精确尺寸）| 精确 `--size/--quality/--n/--background` |
+| 参数控制 | 尺寸/quality 靠自然语言传给 agent | 同左，脚本后处理保证像素尺寸| 精确 `--size/--quality/--n/--background` |
 | 批量 | 多进程并发（建议 ≤3） | 浏览器侧**串行**（慢，但能跑）| `generate-batch`，并发 5-25 |
 | 透明背景 | 不稳 | 不稳 | `--model gpt-image-1.5 --background transparent` |
 | 前置 | `codex login` | 装 Chrome 扩展 + 跑本地桥 + chatgpt.com 已登录（见 `chatgpt-web-bridge/README.md`）| `OPENAI_API_KEY` |
 | 适合 | 边写代码边出图、日常配图、省钱 | **codex 桶 429/耗尽**时续命 | 大批量（>20张）、要精确参数/透明底 |
 
-**默认走订阅路径**。codex 桶报 429/额度耗尽 → 切**网页版路径**（最划算的 fallback，吃另一个更宽的桶）。要透明底/精确参数/大批量 → 切 API 路径（需 key）。
+**默认走订阅路径**。codex 桶报 429/额度耗尽 → 脚本自动检查并切换**网页版路径**（可用 `--no-fallback` 禁用）（最划算的 fallback，吃另一个更宽的桶）。要透明底/精确参数/大批量 → 切 API 路径（需 key）。
 
 ### 实测能力边界
 
 - ✅ 非标比例精确：1410×600 / 1024×1024 / 512×512 全部精确命中
 - ✅ 中文大字准确：「AI 编程」等中文渲染完美
 - ✅ 单图耗时 ~60-130s；并发 2 张墙钟 ~93s（比串行省 ~40%）
-- ✅ agent 生成后自动 `sips` 后处理到请求尺寸
+- ✅ 脚本用 Pillow 后处理到请求尺寸（居中裁剪，保持主体比例）
 - ⚠️ `codex exec -i` 是变长参数会吞 prompt——脚本已用 stdin 传 prompt 规避，手搓命令时注意
 
 ### 🔌 网页版路径实战踩坑（2026-10-17 全链路实测跑通，改代码前先读这段）
@@ -582,11 +582,11 @@ curl -s http://127.0.0.1:8765/reload
 | 失败现象 | 触发条件 | 一线修复 | 仍失败兜底 |
 |---|---|---|---|
 | 订阅路径 429 / 额度耗尽 | `gen_via_codex.py` 报 quota 类错误 | **切网页版路径** `python3 scripts/gen_via_chatgpt_web.py --prompt ... --out ...`（吃网页版那个更宽的额度桶，0 API 费；前置见 `chatgpt-web-bridge/README.md`，先 `--health` 确认桥+扩展在线）| 网页版桶也满 → 切 API 路径 `image_gen.py`（需 `OPENAI_API_KEY`），或等 N 分钟 |
-| 订阅路径产图但没搬到 `--out` | agent 生成完图但路径不对 | 脚本会自动从 `~/.codex/generated_images/` 兜底搬运 | 手动 `cp ~/.codex/generated_images/<最新文件> <out_path>` |
+| 订阅路径没有写入任务文件 | agent 生成完图但保存路径不对 | 脚本报错并保留原目标文件；核查 agent 输出和任务保存路径 | 确认图片属于该任务后人工恢复；禁止按共享目录最新时间猜测归属 |
 | 透明背景不稳 | 订阅路径无法精确控背景 | 切 API 路径 `--model gpt-image-1.5 --background transparent` | 后处理：`magick input.png -fuzz 5% -transparent white output.png` |
 | **无 API key 做透明 PNG**（`.env` 里 `OPENAI_API_KEY` 是占位符 `your_..._here`，API 路径走不通）| API 路径不可用 + 订阅路径透明不稳 | **纯色幕布 + 抠图**：订阅路径在主体配色里**不存在**的纯平涂色上生成（萌系白橙绿角色用湖蓝 `#2E7BE4`，prompt 写「纯平涂湖蓝背景#2E7BE4，无渐变无阴影，留边距」），再跑 `python3 scripts/chroma_key.py in.png out.png`（全局色距抠图，能清掉钳/臂夹缝里的封闭色块 + alpha 内缩去彩色毛边）| 角色一致性：先抠一张干净 master，再用 master 当 `--ref` 生其它姿态（实测一致性强）|
 | 大批量（>20张）并发不够 | 订阅路径 `--concurrency 3` 太慢 | 切 API 路径 `generate-batch` 子命令，并发 5-25 | 拆批分多次跑，每批 ≤20 |
-| 尺寸非标导致后处理失真 | 1410×600 这种非标比例 | 脚本已自动 `sips` 后处理 | 手动用 `magick` 重新插值（`-filter Lanczos`）|
+| 尺寸非标导致后处理失真 | 1410×600 这种非标比例 | 脚本已用 Pillow 居中裁剪、缩放到精确尺寸 | 手动用 `magick` 重新插值（`-filter Lanczos`）|
 
 **原则**：先一线修复（成本低、不切路径），再 fallback（换工具/换路径）。每个 fallback 都要在 results / log 里记一笔，下次同样错误直接走 fallback。
 
@@ -640,6 +640,8 @@ curl -s http://127.0.0.1:8765/reload
 6. **调优**：如果有残留/缺失，参考 `extraction-strategies.md` 调阈值
 
 ### 脚本工具
+
+运行需要 Python >=3.10；在仓库根目录 `python -m pip install .` 安装 Pillow / NumPy。Windows 使用 PATH 中的 Codex CLI，无需 `which` 或 `sips`。详见 README 安装说明。
 
 | 脚本 | 用途 |
 |------|------|

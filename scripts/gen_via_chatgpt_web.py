@@ -25,7 +25,7 @@ import argparse
 import base64
 import json
 import os
-import subprocess
+import tempfile
 import sys
 import urllib.request
 import urllib.error
@@ -40,6 +40,7 @@ SUBMIT_TIMEOUT = int(os.environ.get("GEN_WEB_TIMEOUT", "620"))
 # 是脚本真实补的，不是文档里编的。--no-craft 可关（调试透传时用）。
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from craft_prompt import craft as craft_prompt  # noqa: E402
+from image_output import parse_size, publish_image, validate_jobs
 
 # 只跟本地桥通信，彻底绕开系统/公司 HTTP 代理（否则 127.0.0.1 会被代理 502）
 _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -60,14 +61,18 @@ def _http(method: str, path: str, payload: dict | None = None, timeout: int = 32
     try:
         with _opener.open(req, timeout=timeout) as r:
             body = r.read().decode("utf-8")
-            return r.status, (json.loads(body) if body else {})
+            decoded = json.loads(body) if body else {}
+            if not isinstance(decoded, dict):
+                return 0, {"error": "桥返回了非对象 JSON"}
+            return r.status, decoded
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "ignore")
         try:
-            return e.code, json.loads(body)
+            decoded = json.loads(body)
+            return e.code, decoded if isinstance(decoded, dict) else {"error": body[:200]}
         except Exception:
             return e.code, {"error": body[:200]}
-    except urllib.error.URLError as e:
+    except (urllib.error.URLError, OSError, ValueError) as e:
         return 0, {"error": f"连不上本地桥 {BRIDGE}（server.py 没跑？）: {e}"}
 
 
@@ -78,26 +83,6 @@ def check_health() -> tuple[bool, str]:
     if not j.get("extensionConnected"):
         return False, "本地桥在线，但 Chrome 扩展没连上（确认扩展已加载 + chatgpt.com 已登录）"
     return True, "桥 + 扩展均在线"
-
-
-def _verify_size(out: Path) -> str:
-    try:
-        from PIL import Image  # noqa
-        with Image.open(out) as im:
-            return f"{im.width}x{im.height}"
-    except Exception:
-        try:
-            r = subprocess.run(["sips", "-g", "pixelWidth", "-g", "pixelHeight", str(out)],
-                               capture_output=True, text=True, timeout=15)
-            w = h = "?"
-            for ln in r.stdout.splitlines():
-                if "pixelWidth" in ln:
-                    w = ln.split(":")[-1].strip()
-                if "pixelHeight" in ln:
-                    h = ln.split(":")[-1].strip()
-            return f"{w}x{h}"
-        except Exception:
-            return "?"
 
 
 def _build_prompt(prompt: str, size: str | None, quality: str | None,
@@ -144,8 +129,9 @@ def generate_one(prompt: str, out: str, size=None, quality=None, ref=None,
                  use_craft: bool = True, invite: bool = False) -> tuple[bool, str]:
     out_path = Path(out)
     try:
+        parse_size(size)
         refs = _load_refs([ref] if isinstance(ref, str) else ref) if ref else []
-    except FileNotFoundError as e:
+    except (OSError, ValueError) as e:
         return False, str(e)
     final_prompt, crafted = _build_prompt(prompt, size, quality, use_craft, invite)
     if crafted:
@@ -168,16 +154,23 @@ def generate_one(prompt: str, out: str, size=None, quality=None, ref=None,
     b64 = j.get("imageBase64")
     if not b64:
         return False, "桥返回成功但没有图片数据"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_bytes(base64.b64decode(b64))
-    dims = _verify_size(out_path)
-    note = ""
-    if size and dims != "?" and dims.replace(" ", "") != size.replace(" ", ""):
-        note = f" ⚠️尺寸{dims}≠请求{size}（网页版不保证精确尺寸，需手动 sips 后处理）"
-    return True, f"{out_path} [{dims}]{note}"
+    try:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=".image-web-", dir=out_path.parent) as directory:
+            staged = Path(directory) / "response.png"
+            staged.write_bytes(base64.b64decode(b64, validate=True))
+            dims = publish_image(staged, out_path, size)
+        return True, f"{out_path} [{dims}]"
+    except (OSError, ValueError, TypeError) as error:
+        return False, f"图片验收失败: {error}"
 
 
 def run_batch(jobs, concurrency) -> int:
+    try:
+        validate_jobs(jobs)
+    except (ValueError, TypeError) as error:
+        _eprint(f"Error: {error}")
+        return 2
     _eprint(f"批量 {len(jobs)} 张，提交并发 {concurrency}（浏览器侧串行执行，慢属正常）")
     failed = 0
 
@@ -202,7 +195,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="走 ChatGPT 网页版额度的生图链路")
     ap.add_argument("--prompt")
     ap.add_argument("--out")
-    ap.add_argument("--size", help="如 1410x600；网页版不保证精确，脚本会校验并提示")
+    ap.add_argument("--size", help="如 1410x600；脚本居中裁剪并缩放到精确尺寸")
     ap.add_argument("--quality", choices=["low", "medium", "high"])
     ap.add_argument("--ref", action="append", help="参考图路径（图生图，实验性）")
     ap.add_argument("--batch", help="JSONL 文件，每行一个 job")
@@ -237,8 +230,12 @@ def main() -> int:
             ln = raw.strip()
             if not ln or ln.startswith("#"):
                 continue
-            job = json.loads(ln)
-            if "prompt" not in job or "out" not in job:
+            try:
+                job = json.loads(ln)
+            except json.JSONDecodeError as error:
+                _eprint(f"Error: 第 {n} 行 JSON 解析失败: {error}")
+                return 2
+            if not isinstance(job, dict) or "prompt" not in job or "out" not in job:
                 _eprint(f"Error: 第 {n} 行缺 prompt 或 out")
                 return 2
             jobs.append(job)
