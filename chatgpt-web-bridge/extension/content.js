@@ -315,7 +315,7 @@ async function runJob(job) {
     report(jid, "send-clicked", String(send.info).slice(0, 140));
     // 真正的证据：对话流里 user 轮次是否 +1。没 +1 说明消息压根没发出去
     if (!send.sent) {
-      report(jid, "send-verify", `⚠️ 未确认发出 userTurns=${send.userTurns}（仍会继续等待，但多半不会回复）`);
+      throw new Error(`发送失败：回车与按钮兜底后仍未确认提交，userTurns=${send.userTurns}`);
     } else {
       report(jid, "send-verify", `✓ 已发出 userTurns=${send.userTurns}`);
     }

@@ -72,6 +72,11 @@ python3 scripts/gen_via_chatgpt_web.py --batch jobs.jsonl --concurrency 2
 
 ## 故障排查
 
+若输入框已有提示词但回车没有发送，扩展会检查原草稿是否仍在、是否出现了新用户消息，
+然后使用浏览器级鼠标事件点击可用的“发送”按钮。已经提交的请求不会重复点击；
+两种方式都未确认提交时立即返回发送失败，不再空等 300 秒。发送逻辑回归测试：
+`node --test tests/test_bridge_send.cjs`（在仓库根目录执行）。
+
 | 现象 | 原因 / 解法 |
 |---|---|
 | `--health` 说桥不可用 | `server.py` 没跑，或端口被占 |
