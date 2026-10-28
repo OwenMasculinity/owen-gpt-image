@@ -4,6 +4,14 @@
 
 `owen-gpt-image` **不是教你写 prompt，是让你不用再写 prompt。**
 
+<p>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/Agent-Agnostic-blueviolet" alt="Agent-Agnostic">
+  <a href="https://github.com/OwenMasculinity/owen-gpt-image"><img src="https://img.shields.io/badge/GitHub-OwenMasculinity%2Fowen--gpt--image-181717?logo=github" alt="GitHub"></a>
+</p>
+
+</div>
+
 > 「我语言的界限，就是我世界的界限。」  
 > —— 维特根斯坦《逻辑哲学论》
 
@@ -12,14 +20,6 @@
 
 所以这里做的是**把名字这层藏起来**：你说人话，它替你叫出那个名字。  
 外加一条**不花 API 钱也能跑通**的出图链路。
-
-</div>
-
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-
-![Agent-Agnostic](https://img.shields.io/badge/Agent-Agnostic-blueviolet)
-
-![GitHub](https://img.shields.io/badge/GitHub-OwenMasculinity%2Fowen--gpt--image-181717?logo=github)
 
 ---
 
@@ -32,7 +32,7 @@
 | "这张字太小，重出"      | 查失败模式树对症改，不是「再试一次」            |
 | "做个产品对比信息图"     | 走单图 playbook，三槽位各填一个真名        |
 
-四条卖点，每一条都对着一个真实痛点：
+五条卖点，每一条都对着一个真实痛点：
 
 |                 |                                                                    |
 | --------------- | ------------------------------------------------------------------ |
