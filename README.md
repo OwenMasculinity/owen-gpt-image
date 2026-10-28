@@ -1,405 +1,284 @@
 <div align="center">
 
-# 你只说感觉，它自报名字
+# owen-gpt-image
 
-`owen-gpt-image` **不是教你写 prompt，是让你不用再写 prompt。**
+**你只说感觉，它自报名字。**
+
+把「高级感」「温暖」「科技感」变成具体的风格参照，再完成提示词加工与出图。
 
 <p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/Agent-Agnostic-blueviolet" alt="Agent-Agnostic">
-  <a href="https://github.com/OwenMasculinity/owen-gpt-image"><img src="https://img.shields.io/badge/GitHub-OwenMasculinity%2Fowen--gpt--image-181717?logo=github" alt="GitHub"></a>
+  <a href="https://github.com/OwenMasculinity/owen-gpt-image/actions/workflows/tests.yml"><img src="https://github.com/OwenMasculinity/owen-gpt-image/actions/workflows/tests.yml/badge.svg?branch=master" alt="Tests"></a>
+  <a href="https://github.com/OwenMasculinity/owen-gpt-image"><img src="https://img.shields.io/badge/GitHub-Repository-181717?logo=github" alt="GitHub repository"></a>
 </p>
+
+[快速开始](#quick-start) · [使用示例](#examples) · [网页桥](#web-bridge) · [常见问题](#faq) · [文档](#docs)
 
 </div>
 
-> 「我语言的界限，就是我世界的界限。」  
-> —— 维特根斯坦《逻辑哲学论》
-
-模型记得 Dieter Rams、Penguin Books、原研哉长什么样 —— **叫得出名字，图就精**。  
-问题是大多数人叫不出，只会说「高级感」「温暖」「科技感」。
-
-所以这里做的是**把名字这层藏起来**：你说人话，它替你叫出那个名字。  
-外加一条**不花 API 钱也能跑通**的出图链路。
-
 ---
 
-## 一 · 装上之后怎么用
+你不必先认识 Dieter Rams、Penguin Books 或原研哉。描述想要的感觉，工具会从本地映射表里找出风格候选；拿不定主意时，还可以看编号参考卡再选。
 
-| 你说              | 它做                            |
-| --------------- | ----------------------------- |
-| "给这篇文章做个封面"     | 定风格家族 → 挑 ref 垫图 → 出图 → 逐字验收  |
-| "做一套 12 个 icon" | 一次生成 4×3 网格 → 自动切成 12 张透明 PNG |
-| "这张字太小，重出"      | 查失败模式树对症改，不是「再试一次」            |
-| "做个产品对比信息图"     | 走单图 playbook，三槽位各填一个真名        |
+这个仓库包含一份供 agent 使用的 [SKILL.md](SKILL.md)，以及可单独运行的 Python 工具。方法论可以供不同 agent 使用；Codex 生图入口需要 Codex CLI，网页生图入口需要本地桥与 Chrome 扩展。
 
-五条卖点，每一条都对着一个真实痛点：
+| 你想做的事 | 项目提供什么 |
+| --- | --- |
+| 「给这篇文章做个高级点的封面」 | 感觉词查表，给出具体风格参照 |
+| 「我也不知道哪种好看」 | 本地参考图库 → 编号看板 → 选中一种再生成 |
+| 「用 Dieter Rams 风格做一页说明书」 | 加工提示词，补充中文、无水印等约束，再执行检查 |
+| 「做一套 12 个图标」 | 网格生成方法、独立 PNG 切图和预览工具 |
+| 「Codex 额度用完了」 | 检测额度错误，自动检查并切换已配置好的网页桥 |
 
-|                 |                                                                    |
-| --------------- | ------------------------------------------------------------------ |
-| 🗣 **说人话就出图**   | 装进 agent 即可。不用学语法、不用背模板、不用手抄提示词合集——你说中文短句，它负责把这句人话变成能打的 prompt     |
-| 💸 **0 API 费**  | 默认吃 codex 订阅额度；额度打满自动切 ChatGPT **网页版**额度（本仓库自带网页桥）——两条路都不花一分 API 钱 |
-| ✅ **不靠重抽卡**     | 出图前 5 项自检卡住质量，出图后有失败模式树对症修。抽卡十次，不如改对一处                             |
-| ⚡ **批量一次到位**    | 网格法一次出 12 张，同一张图里的元素风格天然一致，再自动切成独立透明 PNG                           |
-| 🧭 **叫不出名字也算数** | 说「高级感」它查表给出三个真名候选；还出九宫格让你**指认**。全程不需要你认识任何设计师、背任何风格名词              |
+**费用与前提：** 两条内置生图入口使用已登录账户的订阅能力，不需要 `OPENAI_API_KEY`，也不会自动调用按量付费 API。订阅本身、账户额度、模型权限和网络仍是运行前提。风格查表与看板渲染在本地完成，不调用生图接口。
 
-### 1.1 和别的方案有什么不一样
+<a id="quick-start"></a>
 
-同一件事，四种做法的差别：
+## 快速开始
 
-|           | 提示词合集 / 教程 | 通用 agent 直接生图 | 直接调 OpenAI API | **本仓库**                   |
-| --------- | ---------- | ------------- | -------------- | ------------------------- |
-| 形态        | 文章、词表，靠人抄  | 靠模型临场发挥       | 脚本 + 参数        | **装进 agent 的 skill**      |
-| prompt 质量 | 固定模板，换题就废  | 波动大，容易 AI 味   | 等于你自己写的水平      | **出图前 5 项自检，不达标不许交付**     |
-| 出图成本      | 自己另找工具     | 看平台           | **按量付费**       | **0 API 费**（订阅额度 + 网页版额度） |
-| 额度打满      | —          | 排队等           | 继续烧钱           | **自动切网页版额度**（自带桥）         |
-| 出错了       | 自己猜        | 「再试一次」        | 「再试一次」         | **失败模式树对症改**              |
-| 批量        | 无          | 慢             | 要自己写并发         | **网格法一次 12 张 + 自动切图**     |
-| 不懂设计时     | 先去学风格名词    | 靠模型猜          | 靠模型猜           | **查表给三个真名候选 + 九宫格指认**     |
-| 图上中文      | 容易冒出英文     | 不稳            | 看 prompt 怎么写   | **默认中文，验收逐字查**            |
-
-### 1.2 说不出名字怎么办
-
-「高级感」「温暖」「科技感」——说得出感觉，叫不出 Dieter Rams、吉卜力。
-
-仓库里的做法是把「填真名」藏成内部实现，你只管说人话：
-
-| 你说            | 它做                                                                              |
-| ------------- | ------------------------------------------------------------------------------- |
-| 「高级感」         | 查 `references/vibe-to-name.md` → 给出 3 个候选真名（无印良品 / Dieter Rams / Jil Sander）让你选 |
-| 「不知道要什么，你看着办」 | 用元 prompt 让模型先自报 3 个参照，再按它生成                                                    |
-| 「随便」          | 按默认真名直接生成，不再追问（**最多问一轮，且自带默认值**）                                                |
-
-查表是离线的，不花 token：
+### 1. 获取项目
 
 ```bash
-python scripts/vibe.py 高级感
+git clone https://github.com/OwenMasculinity/owen-gpt-image.git
+cd owen-gpt-image
 ```
 
-### 1.3 九宫格盲测：看图指认
-
-文字候选也有选不出来的时候 —— 用户看着「无印良品」三个字，依然想象不出它长什么样。  
-那就把卡片换成图：一次给出九张编号风格卡，用户只要说「我要 3 号」。
-
-![九宫格盲测流程](docs/blind-test-flow.png)
-
-两条原则，都是为了省额度：
-
-1. **检索优先** —— 九宫格里放的是**检索回来的参考图**（或本地渲染的文字卡），  
-   不是新生成的九张图。在「还不知道要什么」的时候烧 9 次额度是最蠢的花法。
-2. **生成克制** —— 指认之后默认只生成选中的那 1 张。  
-   只有你明确说要多种风格（`--variants N`）时，才生成 N 张。
-
-```bash
-python scripts/blind_test.py 高级感                    # 检索 + 出编号看板（不生图）
-python scripts/blind_test.py 高级感 --images-dir DIR    # 从本地参考图库贴真实示意
-python scripts/blind_test.py 高级感 --pick 3 --generate --subject "大疆 pocket3 说明书"
-```
-
-看板由 PIL 本地渲染，零 API 成本。（流程图 SVG 源：`docs/blind-test-flow.svg`）
-
----
-
-## 二 · 实测案例：输入 → 加工 → 输出
-
-### 2.1 一句设计名词都不用说
-
-大白话先被翻译成真名，再走同一条流水线。下面这张不是示意图，是**真实出图**  
-（GPT-image-2，走本仓库自带的网页桥，0 API 费）：
-
-| 你说           | 翻译成                              | 真实出图                                                            |
-| ------------ | -------------------------------- | --------------------------------------------------------------- |
-| 「给我弄个高级点的封面」 | 🌐 无印良品 —— 日式素净：米白、素纸、无 logo、无装饰 | <img src="docs/cases/vibe-muji.png" width="280" alt="无印良品风格封面"> |
-
-实际送进模型的是这一句，里面**没有一个形容词在管氛围**（`craft_prompt.py` 真实输出，可复制复跑）：
-
-```
-一本生活方式杂志的封面，无印良品风格，米白素纸底色，无 logo 无装饰，大量留白，图里描述性文字用中文，无水印，1024x1024
-```
-
-### 2.2 已经带了真名的输入
-
-加工分两层，各司其职——**别把它们混为一谈**：
-
-| 层 | 谁来做 | 管什么 |
-| --- | --- | --- |
-| **增益层** | 真名本身 + 按 SKILL.md 方法论组织 prompt | 管**上限**：说「Criterion」一个词，模型自动带出 NO. 编号 / manifesto / curated stamp——这是模型的知识，不是 prompt 技巧 |
-| **门禁层** | `scripts/craft_prompt.py`（两条生图链路默认调用，`--no-craft` 才透传） | 管**下限**：图里描述性文字用中文（红线 1.2）、无水印、报刊 nameplate 防护（红线 3）、补尺寸、跑 5 项自检（红线 4），有 FAIL 拒绝生图 |
-
-| 你说（≤30 字） | 增益层：这个真名自带什么 | 门禁层：craft 优化后的 prompt（可直接复制） |
-| --- | --- | --- |
-| `Dieter Rams 风格的大疆 pocket3 说明书` | 三槽位全强（风格 Rams / 产品 pocket3 / 载体说明书），每词打包几百条决策，输出含真实参数的官方手册级 A4 页面 | `Dieter Rams 风格的大疆 pocket3 说明书，图里描述性文字用中文，无水印，1024x1024` |
-| `The Criterion Collection 风格的 Cursor 产品页` | Criterion 的 NO. 编号、manifesto、curated stamp 整套自动迁移到新主体 | `The Criterion Collection 风格的 Cursor 产品页，图里描述性文字用中文，无水印，1024x1024` |
-| `Penguin Books 风格的 Cursor 产品手册` | 三段橙配色 + MODERN [X] CLASSICS 命名传统全到位 | `Penguin Books 风格的 Cursor 产品手册，图里描述性文字用中文，无水印，1024x1024` |
-| `Brutalism 风格的婴儿米粉包装` | 缺品牌名 → 主动 invite，模型自发贡献「禾筑」品牌名 | `Brutalism 风格的婴儿米粉包装，图里描述性文字用中文，无水印，1024x1024` |
-| `Apple 设计语言的中药包装。请你也贡献品牌名/slogan/命名逻辑` | invite 命名升级：输出的不只是一张图，是一套完整品牌系统 | `Apple 设计语言的中药包装。请你也贡献品牌名/slogan/命名逻辑，图里描述性文字用中文，无水印，1024x1024` |
-
-自己跑一遍验证（离线，不花额度）：
-
-```bash
-python scripts/craft_prompt.py "Dieter Rams 风格的大疆 pocket3 说明书" --size 1024x1024
-```
-
-#### 不加工会怎样：一张真实的反面教材
-
-上面那张 Penguin 图，是 2026-10-19 **没走 craft、原话直塞**给模型的真实结果——
-`PENGUIN BOOKS / CURSOR / PRODUCT MANUAL / The AI code editor...` 整页英文。
-模型有训练数据偏见：不显式说「图里文字用中文」，它就默认跳英文（红线 1.2 就是这么来的）。
-
-![未走 craft 的透传结果：整页英文](docs/cases/before-no-craft.png)
-
-门禁层只保证不翻车；上限永远由增益层决定——**你脑子里多认识一个精准的名字，比多写十行 prompt 管用**。
-
----
-
-## 三 · 装上就能用
-
-**仓库**：<https://github.com/OwenMasculinity/owen-gpt-image>
-
-方式一 · skills 安装：
+如果只想把方法论装进支持 skills 的 agent，也可以使用：
 
 ```bash
 npx skills add OwenMasculinity/owen-gpt-image
 ```
 
-方式二 · 直接克隆到你的 skills 目录：
+安装 skill 后可直接描述需求，例如：「给这篇文章做一张封面，风格温暖一点。」运行仓库脚本还需要下面的 Python 环境与对应生图后端。
 
-```bash
-git clone https://github.com/OwenMasculinity/owen-gpt-image.git ~/.claude/skills/owen-gpt-image
-```
+### 2. 安装依赖
 
-> **发布版说明**：`SKILL.md` 里的 `$IMAGE_LIB`（配图库）与 `$LOGO_LIB`（品牌 Logo 库）  
-> 是占位符，对应你自己机器上的真实目录——克隆后替换即可。
-
----
-
-### 3.1 运行环境与安装依赖
-
-需要 **Python 3.10 或更新版本**。在仓库根目录运行以下命令；Windows 请先用
-`python --version` 确认没有误用旧版 Anaconda，必要时用 `py -3.11` 替换 `python`。
+需要 **Python 3.10+**。先运行 `python --version` 确认版本，避免误用旧版 Anaconda。
 
 ```bash
 python -m venv .venv
-# Windows PowerShell
+```
+
+Windows PowerShell：
+
+```powershell
 .venv\Scripts\Activate.ps1
-# macOS / Linux
-# source .venv/bin/activate
+```
+
+macOS / Linux：
+
+```bash
+source .venv/bin/activate
+```
+
+然后安装依赖：
+
+```bash
 python -m pip install .
-python -m unittest discover -s tests -v
 ```
 
-`pip install .` 安装本仓库声明的 Pillow / NumPy 依赖，脚本仍从克隆目录运行。
-Codex 路径另外需要可在 PATH 中找到的 `codex` CLI，并完成 `codex login`；
-网页路径需要已启动的本地桥和已连接的 Chrome 扩展。
+此命令安装 Pillow、NumPy 等声明的依赖；以下脚本均从仓库根目录运行。Windows 如果 `python` 指向旧版本，可以用已安装的新版解释器（如 `py -3.11`）创建虚拟环境。
 
-两条入口都会验证返回图片，并用 Pillow 保存为 PNG。指定 `--size` 时，
-先按目标比例**居中裁剪**，再缩放到精确像素，不拉伸主体；边缘内容可能裁掉，
-文字和重要元素应放在安全区。未指定尺寸则保留原始像素尺寸。
-每个任务使用独立临时目录，验收成功后原子替换目标文件，失败时保留原文件；
-批量任务不允许多个 job 写入同一路径。不同脚本进程也应使用不同输出路径。
-
-Codex 返回 429 / quota / usage limit 错误时，入口自动检查网页桥并切换；
-认证失败、超时和其他错误不会触发切换。可传 `--no-fallback` 禁用。
-桥未准备好时会清楚报告两条链路的失败原因，不会启动按量付费 API。
-
-若 Codex 返回 `model_not_found` / 模型不支持当前账户，可通过 `--model <可用模型>`
-或环境变量 `GEN_CODEX_MODEL` 指定模型。优先级为 JSONL job 的 `model`、命令行
-`--model`、环境变量、CLI 默认配置；脚本不会修改全局配置或猜测替代模型。
-模型需要支持图像生成工具，具体可用性以当前账户为准。
-参数依据：[Codex CLI 官方参考](https://developers.openai.com/codex/cli/reference)。
-
-九宫格默认检索仓库 `docs/cases` 的少量案例，也可设置 `IMAGE_LIB` 或
-`--images-dir` 指向完整图库。缺图时只显示文字占位卡，命令输出会报告缺图数量；
-占位卡的底色不代表该风格。JSON 输出提供 `reference_count` / `placeholder_count`。
-
----
-
-## 四 · 核心概念
-
-方法论、`SKILL.md` 里的规则、几条生成路、批量和排错——都在这里。  
-不读也能用（agent 会替你读），读了才知道它为什么这么干。
-
-### 4.1 概念压缩比：三槽位各填一个真名
-
-> 「好的设计是尽可能少的设计。」  
-> —— Dieter Rams
-
-**prompt 的有效信息 ≠ prompt 的字数。决定输出质量的是单字承载的设计决策密度。**
-
-写 prompt 之前先问一句：**主体 / 风格 / 媒介**三个槽位，能不能各填一个模型  
-熟知的高频名字？
-
-|    | 堆形容词          | 填名字         |
-| -- | ------------- | ----------- |
-| 主体 | 「一个便携相机」      | 大疆 pocket3  |
-| 风格 | 「简约、高级、德国工业感」 | Dieter Rams |
-| 媒介 | 「产品介绍页面」      | 说明书         |
-
-三个槽都填上了 → 短 prompt 就够。有空槽 → 那个槽位才需要结构化描述补足。
-
-所以这个 skill 真正在训练的不是 prompt 写法，是**你脑子里的概念库**：  
-设计师、品牌、媒介范式，每多认识一个精准的名字，你的上限就抬高一点。
-
-### 4.2 执行逻辑：6 步到一张 png
-
-| 步 | 做什么         | 关键约束                                                                                       |
-| - | ----------- | ------------------------------------------------------------------------------------------ |
-| 1 | 确认平台尺寸      | 公众号首图 2.35:1 = **1410×600**；小红书 3:4 = **1242×1660**；B站封面 16:9 = **1280×720**。凭记忆写尺寸是常见 bug |
-| 2 | 选工作模式       | 执行（目标清晰）/ 混合（有方向）/ 探索（没方向，先开 5-10 张看路）                                                     |
-| 3 | 写中文短 prompt | 三槽位各填真名；简单单图 30 字内，构图型封面 / infographic 可到 200 字                                            |
-| 4 | 跑 5 项自检     | 中英文？长度匹配？真名 ≥2 个？有没有伪 section？删掉一半字还能懂吗？—— 任何一条不过，禁止交付                                     |
-| 5 | 调脚本生成       | 见 4.3                                                                                      |
-| 6 | 验收          | 尺寸精确？中文每个字都对？关键信息在安全区？设计史细节有没有串台？                                                          |
-
-### 4.3 三条生成路
-
-|      | **订阅路径** `gen_via_codex.py` | **网页版路径** `gen_via_chatgpt_web.py` | **API 路径**                             |
-| ---- | --------------------------- | ---------------------------------- | -------------------------------------- |
-| 计费   | codex 订阅额度，0 API 费          | ChatGPT **网页版**订阅额度，0 API 费        | 按量计费，需 `OPENAI_API_KEY`                |
-| 额度桶  | 较紧，用几次容易 429                | **宽得多**，独立于 codex 桶                | 看钱包                                    |
-| 参数控制 | 靠自然语言传给 agent               | 同左                                 | 精确 `--size/--quality/--n/--background` |
-| 批量   | 多进程并发（建议 ≤3）                | 浏览器侧串行                             | 并发 5-25                                |
-| 透明背景 | 不稳                          | 不稳                                 | 稳                                      |
-| 适合   | 日常配图、省钱                     | **codex 桶 429 时的主力 fallback**      | 大批量（>20 张）/ 要精确参数                      |
-
-**默认走订阅路径；报 429 或额度耗尽 → 自动检查并切换网页版路径**（吃另一个更宽的桶，仍然 0 API 费）。
+### 3. 先跑一个不生图的例子
 
 ```bash
-# 订阅路径
-python3 scripts/gen_via_codex.py \
-  --prompt "Kenya Hara 风格的越窑青瓷茶碗特写，米白背景" \
-  --out out.png --size 1410x600 --quality high
-
-# 批量：写个 JSONL，每行一个 job
-python3 scripts/gen_via_codex.py --batch jobs.jsonl --concurrency 3
+python scripts/vibe.py 高级感
+python scripts/craft_prompt.py "Dieter Rams 风格的大疆 pocket3 说明书" --size 1024x1024
 ```
 
-### 4.4 ChatGPT 网页桥（本仓库独有）
+第一条返回风格候选，第二条展示加工后的提示词与检查结果。它们不会消耗生图额度。
 
-`chatgpt-web-bridge/` 是一个本地 HTTP 服务（`127.0.0.1:8765`）+ 一个 Chrome 扩展，  
-把 chatgpt.com 网页版的生图能力桥接成本地 API。**它让你在 codex 额度打满时，  
-还能继续吃 ChatGPT 网页版那个更宽的额度桶，且不花一分 API 费。**
+### 4. 生成第一张图
+
+需要 PATH 中可找到的 Codex CLI、已完成 `codex login`，以及账户可用且支持图像生成工具的模型。
 
 ```bash
-python3 chatgpt-web-bridge/server.py          # 起桥（只监听 127.0.0.1）
-
-curl -s http://127.0.0.1:8765/health          # 确认桥 + 扩展在线
-
-python3 scripts/gen_via_chatgpt_web.py \
-  --prompt "画一只在窗台上晒太阳的橘猫，水彩风格" \
-  --out ./out.png --size 1024x1024 --quality high
-
-curl -s http://127.0.0.1:8765/diag            # 卡住时看步骤时间线
-curl -s http://127.0.0.1:8765/reload          # 改完扩展代码让它自我重载
+python scripts/gen_via_codex.py --prompt "无印良品风格的白色茶碗产品摄影，米白背景" --out outputs/tea-bowl.png --size 512x512 --quality high
 ```
 
-首次部署只需一次：`chrome://extensions` → 开发者模式 → 加载 `chatgpt-web-bridge/extension/`，  
-且该 Chrome profile 里 chatgpt.com 已登录。
+若默认模型不可用，可加 `--model <可用模型>`，或设置 `GEN_CODEX_MODEL`。脚本不会修改全局模型配置。
 
-桥操纵的是真实页面，所以坑是实测撞出来的，不是猜的（`SKILL.md` 里逐条列了根因与修法）：
+想直接走 ChatGPT 网页版，按下方[网页桥](#web-bridge)步骤配置后端。
 
-| 坑                        | 已修方案                                                                   |
-| ------------------------ | ---------------------------------------------------------------------- |
-| 合成 DOM 事件填得进输入框，发出去却是空的  | ChatGPT 用 ProseMirror，合成事件不更新其内部 state → 改用 `chrome.debugger` 浏览器级真实输入 |
-| 操作落在另一个窗口的后台标签，用户看不到     | 派发前把目标窗口提到前台；按候选评分选页，排除错误页死标签                                          |
-| 消息列表虚拟化，计数判不出新回复         | 改用发送前后的图片 src 集合比对                                                     |
-| 生成图是 blob / 跨域 URL，取不到字节 | 在页面上下文用 canvas `toDataURL` 编码                                          |
-| 明明在生成却报超时                | 网页版实测 30-130s，超时参数已放宽                                                  |
-| 改一次扩展就要手动去 Chrome 点刷新    | 桥新增 `/reload`，扩展自调 `chrome.runtime.reload()`                           |
+<a id="examples"></a>
 
-### 4.5 批量生成：网格法
+## 使用示例
 
-icon 集 / 角色集 / 卡牌集 / sprite sheet / 中文长文本，走网格：一次生成一张大图  
-（如 4×3），再用 `scripts/extract_grid.py` 切成单张。
-
-
-比逐张生成快一个数量级，而且**同一张图里的元素风格天然一致**——  
-这是逐张生成很难做到的。
-
-但有个实测踩出来的坑：**别硬性锁死画布尺寸，让比例匹配内容**。  
-早期用 1:1 画布生成 5×5 的 2:3 纵向卡，末行被压缩了 18%——  
-模型在约束冲突时会自发牺牲末行来「保住构图完整」，而且不会告诉你。
-
-| 场景              | 布局         | 抠图模式             |
-| --------------- | ---------- | ---------------- |
-| icon 集          | 4×4 方形     | `--mode=bbox`    |
-| 角色集             | 3×3 方形     | `--mode=bbox`    |
-| TCG 卡牌集         | 4×4 或 5×5  | `--mode=density` |
-| 中文成语 / 知识卡      | 4×4 方形     | `--mode=bbox`    |
-| 古诗竖幅            | 1:3 竖幅     | 单张，不抠            |
-| 对联 / 横幅书法       | 3:1 横幅     | `--mode=density` |
-| 逐帧 sprite sheet | 4×3 = 12 帧 | `--mode=bbox`    |
-
-### 4.6 失败模式树
-
-出图后不要「再试一次」碰运气。`SKILL.md` 里每个失败模式都给了  
-「触发条件 → 一线修复 → 仍失败兜底」三段式，覆盖三层：
-
-- **prompt 层**：英文段落、形容词堆砌、真名不够、输出「安全好看」但没惊喜
-- **渲染层**：中文错字 / 缺笔画、出版品牌名被画成左上角英文 nameplate、风格 transfer 不像
-- **执行层**：订阅路径 429 → 切网页版路径；透明底不稳 → 纯色幕布 + `chroma_key.py`；大批量 → 切 API 路径
-
-### 4.7 三个新工具：查表、门禁、盲测
-
-| 脚本                       | 作用                                                                       |
-| ------------------------ | ------------------------------------------------------------------------ |
-| `scripts/vibe.py`        | 感觉词 → 3 个候选真名，离线查 `references/vibe-to-name.md`，零 token、秒回                |
-| `scripts/lint_prompt.py` | 把 5 项自检做成可执行门禁：中英文、长度、真名数、伪 section、形容词堆砌、尺寸。有 FAIL 项退出码 1               |
-| `scripts/blind_test.py`  | 感觉词 → 九宫格编号看板 → 用户指认 → **只生成选中的那 1 张**（见 1.3）。默认只检索，不加 `--variants` 就不多生 |
+### 感觉词 → 风格候选 → 编号看板
 
 ```bash
-python scripts/vibe.py 温暖                       # 感觉 → 真名
-python scripts/lint_prompt.py "你的 prompt"        # 过门禁，不通过就别交付
-python scripts/blind_test.py 高级感                # 出九宫格看板，不烧额度
+python scripts/vibe.py 温暖
+python scripts/blind_test.py 高级感 --images-dir "你的参考图库目录"
 ```
 
----
+看完编号后，只生成选中的一种风格：
 
-## 附录 · 这个仓库里有什么
+```bash
+python scripts/blind_test.py 高级感 --pick 3 --generate --subject "大疆 pocket3 说明书"
+```
 
-不是一篇教程，是一个能装进 agent 的 skill + 一套可执行的出图工具。
+默认只查表、渲染看板，不生成图片；传入 `--generate` 才会执行生图。明确需要多种风格时，可用 `--variants N --generate`。
+
+默认图库为仓库的 `docs/cases`，内置案例数量有限。找不到参考图时显示文字占位卡，底色不代表实际风格；输出会报告缺图数量。可通过 `--images-dir` 或 `IMAGE_LIB` 指定自己的图库，使用 `--json` 获取候选及参考图覆盖数量。
+
+<details>
+<summary>查看九宫格工作流程</summary>
+
+![九宫格盲测流程](docs/blind-test-flow.png)
+
+</details>
+
+### 提示词加工与检查
+
+核心思路是把**主体、风格、媒介**写具体。例如「Dieter Rams 风格的大疆 pocket3 说明书」，比单写「简约、高级、德国工业感」更明确。
+
+```bash
+python scripts/craft_prompt.py "Dieter Rams 风格的大疆 pocket3 说明书" --size 1024x1024
+```
+
+加工后的提示词：
 
 ```text
-owen-gpt-image/
-├── SKILL.md                        # 主体：4 条红线、5 项自检、决策路由、失败模式树（agent 真正读的是这份）
-├── README.md
-├── LICENSE
-├── .gitignore
-├── test-prompts.json               # 一组回归测试用 prompt
-├── references/
-│   ├── single-image-playbook.md    # 单图方法论：概念库、三维质量模型、平台尺寸全表
-│   ├── prompt-patterns.md          # 批量网格模板：icon / 角色 / 卡牌 / 中文卡 / 书法 / sprite
-│   ├── extraction-strategies.md    # 网格抠图策略与故障排查（bbox / density 两种模式）
-│   ├── capabilities.md             # GPT-image-2 能力边界实测数据
-│   ├── vibe-to-name.md             # 感觉词 → 候选真名映射表（小白 / 甲方模式用，见 1.2）
-│   ├── real-world-cases.md         # 真实案例复盘
-│   ├── video-reference-board.md    # AI 视频参考板：角色三视图 + 分镜 + 机位合成一张图
-│   └── *.png                       # 上面那份参考板的样图
-├── scripts/
-│   ├── gen_via_codex.py            # 生成：单图 / JSONL 并发批量，走 codex 订阅额度（见 4.3）
-│   ├── gen_via_chatgpt_web.py      # 生成：走 ChatGPT 网页版额度（见 4.4）
-│   ├── vibe.py                     # 感觉词 → 候选真名（离线查表，见 4.7）
-│   ├── blind_test.py               # 九宫格盲测：出编号看板 → 指认 → 只生成选中的 1 张（见 1.3）
-│   ├── lint_prompt.py              # prompt 5 项自检门禁，有 FAIL 就退出码 1（见 4.7）
-│   ├── extract_grid.py             # 网格大图 → 多个独立透明 PNG（见 4.5）
-│   ├── contact_sheet.py            # 拼预览图，批量出图后肉眼验收
-│   └── chroma_key.py               # 纯色幕布抠透明（没有 API key 时的透明 PNG 方案）
-├── tests/
-│   ├── test_blind_test.py         # 九宫格与生成次数策略
-│   ├── test_craft_prompt.py       # 提示词门禁
-│   └── test_generation.py         # 并发隔离、失败保护、尺寸验收与额度切换
-├── docs/
-│   └── blind-test-flow.svg        # 九宫格盲测流程示意
-└── chatgpt-web-bridge/             # 本仓库独有：把 chatgpt.com 网页版桥接成本地 HTTP API
-    ├── server.py                   # 本地桥 127.0.0.1:8765：/poll /submit /result /health /diag /reload
-    ├── README.md                   # 桥的部署与排错说明
-    └── extension/                  # Chrome MV3 扩展：CDP 浏览器级真实输入 + canvas 取图
-        ├── manifest.json
-        ├── background.js
-        ├── content.js
-        └── popup.html / popup.js
+Dieter Rams 风格的大疆 pocket3 说明书，图里描述性文字用中文，无水印，1024x1024
 ```
 
----
+`craft_prompt.py` 保留原话，补充必要约束，再调用 `lint_prompt.py` 检查。两条生图入口默认经过这一步，有 FAIL 则拒绝生图；`--no-craft` 可在调试时关闭加工。
+
+检查能够发现部分提示词问题，中文错字、事实准确性、构图和风格效果仍需出图后人工验收。完整方法见 [单图 playbook](references/single-image-playbook.md)。
+
+### 一个真实案例
+
+「给我弄个高级点的封面」→ 选择无印良品参照 → 生成生活方式杂志封面：
+
+<p align="center">
+  <img src="docs/cases/vibe-muji.png" width="420" alt="无印良品参照的生活方式杂志封面">
+</p>
+
+实际使用的提示词：
+
+```text
+一本生活方式杂志的封面，无印良品风格，米白素纸底色，无 logo 无装饰，大量留白，图里描述性文字用中文，无水印，1024x1024
+```
+
+更多案例与失败复盘见 [real-world-cases.md](references/real-world-cases.md)。
+
+### 批量任务与网格切图
+
+独立图片任务使用 JSONL，每行一个 job：
+
+```jsonl
+{"prompt":"无印良品风格的茶碗产品摄影","out":"outputs/tea.png","size":"1024x1024"}
+{"prompt":"Dieter Rams 风格的大疆 pocket3 说明书","out":"outputs/manual.png","size":"1024x1024"}
+```
+
+```bash
+python scripts/gen_via_codex.py --batch jobs.jsonl --concurrency 3
+```
+
+图标、角色或卡牌等需要统一风格的素材，可以先生成一张网格图，再切图和检查：
+
+```bash
+python scripts/extract_grid.py grid.png --grid 3 4 --mode bbox --out outputs/icons
+python scripts/contact_sheet.py --input outputs/icons --out outputs/icons-preview.png
+```
+
+画布比例要匹配素材，避免把纵向卡牌硬塞进方形大图。白底网格可用 `bbox`，行列间距不均可尝试 `density`；纯色幕布素材可用 `chroma_key.py`。效果取决于背景与主体的可分离程度。模板和处理策略见 [prompt-patterns.md](references/prompt-patterns.md) 与 [extraction-strategies.md](references/extraction-strategies.md)。
+
+<a id="web-bridge"></a>
+
+## ChatGPT 网页桥
+
+本地 HTTP 服务负责收发任务，Chrome 扩展负责操作已登录的 ChatGPT 页面：
+
+```text
+Python 脚本 → 本地桥 127.0.0.1:8765 → Chrome 扩展 → ChatGPT 页面
+    ↑                                                    │
+    └────────────── 图片回传、校验、保存 ←───────────────────┘
+```
+
+1. 在 Chrome 的 `chrome://extensions` 打开开发者模式，加载 `chatgpt-web-bridge/extension` 目录。
+2. 在同一个 Chrome 配置中登录 ChatGPT，保持页面打开。
+3. 启动本地桥，运行期间保持该终端开启：
+
+```bash
+python chatgpt-web-bridge/server.py
+```
+
+另开终端，激活同一个虚拟环境，检查连接并生图：
+
+```bash
+python scripts/gen_via_chatgpt_web.py --health
+python scripts/gen_via_chatgpt_web.py --prompt "无印良品风格的白色茶碗产品摄影，米白背景" --out outputs/web-tea.png --size 512x512 --quality high
+```
+
+健康检查需显示 **桥 + 扩展均在线**。仅启动 `server.py` 还不足以生图。
+
+| 接口 | 用途 |
+| --- | --- |
+| `/health` | 服务、扩展连接状态和当日任务计数 |
+| `/diag` | 选页、填入、发送、出图、回传等步骤时间线 |
+| `/reload` | 请求扩展自行重载，加载本地代码修改 |
+
+这些接口位于 `http://127.0.0.1:8765`。根路径 `/` 不是控制台，请使用具体接口。网页桥依赖 ChatGPT 页面的结构和交互，页面更新后可能需要适配；它不等同于官方图片 API。部署与维护说明见 [网页桥 README](chatgpt-web-bridge/README.md)。
+
+## 输出与切换规则
+
+| 情况 | 脚本行为 |
+| --- | --- |
+| 指定 `--size` | 用 Pillow 居中裁剪并缩放到精确像素，保持主体比例；边缘可能被裁掉 |
+| 未指定尺寸 | 保留原始像素尺寸，保存为 PNG |
+| 图片损坏、进程失败或没有任务文件 | 报告失败，保留已有目标文件 |
+| 并发任务 | 使用各自的临时目录，校验后原子替换；同一批次禁止重复输出路径 |
+| Codex 额度错误 | 自动检查并切换已配置的网页桥；可用 `--no-fallback` 禁用 |
+| 认证失败、模型不可用、超时或其他错误 | 返回错误，不自动切换、不调用付费 API |
+
+不同脚本进程也应使用不同输出路径。模型选择优先级为 JSONL job 的 `model` → `--model` → `GEN_CODEX_MODEL` → Codex CLI 配置。
+
+<a id="faq"></a>
+
+## 常见问题
+
+| 现象 | 处理方式 |
+| --- | --- |
+| 启动就报 Python 语法错误 | 确认使用 Python 3.10+，并在虚拟环境里安装依赖 |
+| 找不到 Codex CLI | 检查 PATH，并完成 CLI 安装和登录 |
+| `model_not_found` 或模型不支持账户 | 用 `--model` 指定当前账户可用且支持生图工具的模型 |
+| 桥在线、扩展离线 | 检查扩展是否加载、桥地址是否一致；打开 ChatGPT 页面 |
+| 输入框有字但没发送 | 扩展会尝试发送按钮兜底；检查 `/diag` 的发送确认与错误 |
+| 任务卡住或生图失败 | 先看 `/diag`，区分页面加载、发送、账户限额和网络问题 |
+| 尺寸对了但边缘被裁 | 生成时预留安全区，或不传 `--size` 保留原始构图 |
+| 中文有错字或出现品牌字样 | 调整提示词并人工验收，参考 [SKILL.md](SKILL.md) 的失败模式树 |
+
+## 测试与验证边界
+
+```bash
+python -m unittest discover -s tests -v
+node --test tests/test_bridge_send.cjs
+```
+
+Python 测试覆盖提示词加工、风格选择、任务隔离、输出保护和额度切换；Node.js 测试覆盖发送按钮兜底与重复提交防护。CI 在 Windows、macOS、Linux 的 Python 3.10 / 3.13 环境运行，结果见顶部 Tests 徽章。
+
+**自动化测试不等于真实生图验收。** 最近一次网页桥实测已完成出图、回传和 512×512 保存，但发送步骤有人工协助；发送兜底修复后的全自动复测被浏览器控制中断，尚未完成。真实运行还需要可用账户、扩展、模型权限与网络。
+
+<a id="docs"></a>
+
+## 文档与目录
+
+| 入口 | 内容 |
+| --- | --- |
+| [SKILL.md](SKILL.md) | agent 执行规则、工作模式与失败模式树 |
+| [感觉词映射表](references/vibe-to-name.md) | 感觉 → 设计师、品牌和媒介参照 |
+| [单图 playbook](references/single-image-playbook.md) | 主体、风格、媒介的组织方法 |
+| [提示词模板](references/prompt-patterns.md) | 图标、卡牌、角色、中文卡片等网格模板 |
+| [切图与抠图策略](references/extraction-strategies.md) | bbox、density 与失败排查 |
+| [真实案例](references/real-world-cases.md) | 输出案例与经验复盘 |
+| [视频参考板](references/video-reference-board.md) | 角色三视图、分镜与机位参考 |
+| [网页桥说明](chatgpt-web-bridge/README.md) | 扩展部署、本地服务和维护 |
+
+`scripts/` 存放命令行工具，`tests/` 存放回归测试，`docs/` 存放流程图与案例，生成结果默认可放在已被 Git 忽略的 `outputs/`。
+
+`SKILL.md` 中的 `$IMAGE_LIB`、`$LOGO_LIB` 对应使用者自己的图库目录，需要按本机环境配置。
 
 ## License
 
